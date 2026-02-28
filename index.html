@@ -1123,7 +1123,7 @@
             }
         }
 
-        async function submitFrames() {
+        function submitFrames() {
             if (!currentBatchId) return;
 
             const entries = ['1', '2', '3'].map(n => {
@@ -1168,7 +1168,7 @@
             let prodAdded = 0;
             let qaAdded = 0;
 
-            entries.forEach(e => {
+            for (const e of entries) {
                 const log = {
                     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
                     date: today,
@@ -1181,14 +1181,14 @@
                     endFrame: e.endFrame
                 };
                 logs.push(log);
-                await syncToCloud('addLog', { log });
+                syncToCloud('addLog', { log });
 
                 if (e.type === 'production') {
                     prodAdded += e.frames;
                 } else {
                     qaAdded += e.frames;
                 }
-            });
+            }
 
             batch.completed = Math.min((batch.completed || 0) + prodAdded, batch.totalFrames);
             batch.currentFrame = parseInt(document.getElementById('modalCurrentFrame').value) || batch.currentFrame;
@@ -1203,7 +1203,7 @@
                 batch.status = 'completed';
             }
 
-            await syncToCloud('updateBatch', { batch });
+            syncToCloud('updateBatch', { batch });
             refreshUI();
 
             let msg = `Production: +${prodAdded} frames (added to completed)`;
@@ -1470,5 +1470,3 @@
     </script>
 </body>
 </html>
-
-
