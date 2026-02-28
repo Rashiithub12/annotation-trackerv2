@@ -588,14 +588,11 @@
             updateSyncStatus('syncing', 'Saving...');
 
             try {
-                // Use POST to avoid URL length limits and CORS issues
-                const payload = JSON.stringify({ action, ...data });
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: payload,
-                    redirect: 'follow'
-                });
+                const url = new URL(SCRIPT_URL);
+                url.searchParams.append('action', action);
+                url.searchParams.append('data', JSON.stringify(data));
+
+                const response = await fetch(url.toString());
                 const result = await response.json();
 
                 if (result.success) {
@@ -605,18 +602,6 @@
                 }
             } catch (error) {
                 console.error('Save error:', error);
-                // Fallback to GET if POST fails
-                try {
-                    const url = new URL(SCRIPT_URL);
-                    url.searchParams.append('action', action);
-                    url.searchParams.append('data', JSON.stringify(data));
-                    const response = await fetch(url.toString());
-                    const result = await response.json();
-                    if (result.success) {
-                        updateSyncStatus('connected', 'Saved!');
-                        return;
-                    }
-                } catch (e2) { /* fallback also failed */ }
                 updateSyncStatus('disconnected', 'Save failed');
             }
         }
