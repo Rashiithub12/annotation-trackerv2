@@ -1202,7 +1202,6 @@
                     endFrame: e.endFrame
                 };
                 logs.push(log);
-                syncToCloud('addLog', { log });
 
                 if (e.type === 'production') {
                     prodAdded += e.frames;
@@ -1224,7 +1223,8 @@
                 batch.status = 'completed';
             }
 
-            syncToCloud('updateBatch', { batch });
+            // Save everything in one call to ensure data persists
+            syncToCloud('saveAll', { batches: batches, logs: logs });
             refreshUI();
 
             let msg = `Production: +${prodAdded} frames (added to completed)`;
