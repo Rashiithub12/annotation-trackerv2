@@ -546,6 +546,37 @@
             textEl.textContent = text;
         }
 
+        // JSONP request - bypasses CORS by loading data via <script> tag
+        let jsonpCounter = 0;
+        function jsonpRequest(url) {
+            return new Promise((resolve, reject) => {
+                const callbackName = '_jsonp_cb_' + (++jsonpCounter) + '_' + Date.now();
+                const timeout = setTimeout(() => {
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(new Error('Request timed out'));
+                }, 30000);
+
+                window[callbackName] = function(data) {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    resolve(data);
+                };
+
+                const separator = url.includes('?') ? '&' : '?';
+                const script = document.createElement('script');
+                script.src = url + separator + 'callback=' + callbackName;
+                script.onerror = function() {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(new Error('Script load failed'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
         async function syncFromCloud() {
             if (!SCRIPT_URL) {
                 showSetup();
@@ -556,8 +587,7 @@
             isSyncing = true;
 
             try {
-                const response = await fetch(SCRIPT_URL + '?action=getAll&_t=' + Date.now());
-                const data = await response.json();
+                const data = await jsonpRequest(SCRIPT_URL + '?action=getAll&_t=' + Date.now());
 
                 batches = data.batches || [];
                 logs = data.logs || [];
@@ -575,7 +605,6 @@
             } catch (error) {
                 console.error('Sync error:', error);
                 updateSyncStatus('disconnected', 'Disconnected');
-                alert('Failed to connect to Google Sheets. Please check your URL and try again.');
             } finally {
                 isSyncing = false;
                 document.getElementById('loadingOverlay').style.display = 'none';
@@ -592,14 +621,8 @@
                 url.searchParams.append('action', action);
                 url.searchParams.append('data', JSON.stringify(data));
 
-                const response = await fetch(url.toString());
-                const result = await response.json();
-
-                if (result.success) {
-                    updateSyncStatus('connected', 'Saved!');
-                } else {
-                    throw new Error(result.error || 'Save failed');
-                }
+                await jsonpRequest(url.toString());
+                updateSyncStatus('connected', 'Saved!');
             } catch (error) {
                 console.error('Save error:', error);
                 updateSyncStatus('disconnected', 'Save failed');
