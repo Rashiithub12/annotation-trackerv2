@@ -588,12 +588,14 @@
             updateSyncStatus('syncing', 'Saving...');
 
             try {
-                // Use URL params for GET to work with Google Apps Script
-                const url = new URL(SCRIPT_URL);
-                url.searchParams.append('action', action);
-                url.searchParams.append('data', JSON.stringify(data));
-
-                const response = await fetch(url.toString());
+                // Use POST to avoid URL length limits and CORS issues
+                const payload = JSON.stringify({ action, ...data });
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: payload,
+                    redirect: 'follow'
+                });
                 const result = await response.json();
 
                 if (result.success) {
@@ -603,6 +605,18 @@
                 }
             } catch (error) {
                 console.error('Save error:', error);
+                // Fallback to GET if POST fails
+                try {
+                    const url = new URL(SCRIPT_URL);
+                    url.searchParams.append('action', action);
+                    url.searchParams.append('data', JSON.stringify(data));
+                    const response = await fetch(url.toString());
+                    const result = await response.json();
+                    if (result.success) {
+                        updateSyncStatus('connected', 'Saved!');
+                        return;
+                    }
+                } catch (e2) { /* fallback also failed */ }
                 updateSyncStatus('disconnected', 'Save failed');
             }
         }
@@ -1101,7 +1115,7 @@
             }
         }
 
-        function submitFrames() {
+        async function submitFrames() {
             if (!currentBatchId) return;
 
             const entries = ['1', '2', '3'].map(n => {
@@ -1159,7 +1173,7 @@
                     endFrame: e.endFrame
                 };
                 logs.push(log);
-                syncToCloud('addLog', { log });
+                await syncToCloud('addLog', { log });
 
                 if (e.type === 'production') {
                     prodAdded += e.frames;
@@ -1181,7 +1195,7 @@
                 batch.status = 'completed';
             }
 
-            syncToCloud('updateBatch', { batch });
+            await syncToCloud('updateBatch', { batch });
             refreshUI();
 
             let msg = `Production: +${prodAdded} frames (added to completed)`;
