@@ -611,17 +611,38 @@
             }
         }
 
-        async function syncToCloud(action, data) {
+        function syncToCloud(action, data) {
             if (!SCRIPT_URL) return;
 
             updateSyncStatus('syncing', 'Saving...');
 
             try {
-                const url = new URL(SCRIPT_URL);
-                url.searchParams.append('action', action);
-                url.searchParams.append('data', JSON.stringify(data));
+                // Use hidden iframe + form POST to bypass CORS for writes
+                const iframe = document.createElement('iframe');
+                iframe.name = '_postFrame_' + Date.now();
+                iframe.style.display = 'none';
+                document.body.appendChild(iframe);
 
-                await jsonpRequest(url.toString());
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = SCRIPT_URL;
+                form.target = iframe.name;
+
+                const input = document.createElement('input');
+                input.type = 'hidden';
+                input.name = 'payload';
+                input.value = JSON.stringify({ action: action, ...data });
+                form.appendChild(input);
+
+                document.body.appendChild(form);
+                form.submit();
+
+                // Clean up after a delay
+                setTimeout(() => {
+                    if (form.parentNode) form.parentNode.removeChild(form);
+                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                }, 10000);
+
                 updateSyncStatus('connected', 'Saved!');
             } catch (error) {
                 console.error('Save error:', error);
