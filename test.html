@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head><title>JSONP Test on GitHub Pages</title></head>
+<body>
+<h1>JSONP Test on GitHub Pages</h1>
+<pre id="result">Loading... please wait 10 seconds</pre>
+<pre id="debug" style="background:#f0f0f0; padding:10px; font-size:12px;"></pre>
+<script>
+    var debug = document.getElementById('debug');
+    function log(msg) {
+        debug.textContent += msg + '\n';
+        console.log(msg);
+    }
+
+    var SCRIPT_URL = 'https://script.google.com/a/macros/thedatadeeds.com/s/AKfycbym_1kWmvRJZQvPSf0Jx3lNbPpTPqQObeUzNioIJPFobaxN3U5-LrZW-zY3bP8Jv6xE/exec';
+
+    log('Starting JSONP test...');
+    log('URL: ' + SCRIPT_URL);
+
+    window._test_cb = function(data) {
+        document.getElementById('result').textContent = 'SUCCESS! Got ' + (data.batches || []).length + ' batches and ' + (data.logs || []).length + ' logs';
+        log('Data received successfully!');
+    };
+
+    var script = document.createElement('script');
+    script.src = SCRIPT_URL + '?action=getAll&callback=_test_cb&_t=' + Date.now();
+    script.onload = function() { log('Script tag loaded'); };
+    script.onerror = function(e) {
+        document.getElementById('result').textContent = 'FAILED - script onerror fired';
+        log('Script onerror fired!');
+    };
+    document.head.appendChild(script);
+    log('Script tag appended to head');
+    log('Script src: ' + script.src);
+
+    setTimeout(function() {
+        if (document.getElementById('result').textContent.indexOf('Loading') === 0) {
+            document.getElementById('result').textContent = 'TIMEOUT - No response after 15 seconds';
+            log('Timed out waiting for response');
+        }
+    }, 15000);
+</script>
+</body>
+</html>
