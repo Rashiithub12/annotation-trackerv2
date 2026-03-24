@@ -1,0 +1,1659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Annotation Tracker V2</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f5f5f5; padding: 20px; }
+
+        .container { max-width: 1400px; margin: 0 auto; }
+
+        header { background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 20px; border-radius: 12px; margin-bottom: 20px; position: relative; }
+        header h1 { font-size: 24px; margin-bottom: 5px; }
+        header p { opacity: 0.9; font-size: 14px; }
+
+        .sync-status { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 10px; }
+        .sync-indicator { width: 10px; height: 10px; border-radius: 50%; }
+        .sync-indicator.connected { background: #4caf50; }
+        .sync-indicator.disconnected { background: #f44336; }
+        .sync-indicator.syncing { background: #ff9800; animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 10px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .stat-card .value { font-size: 28px; font-weight: 700; }
+        .stat-card .label { font-size: 12px; color: #666; margin-top: 5px; }
+        .stat-card.blue .value { color: #1976d2; }
+        .stat-card.green .value { color: #388e3c; }
+        .stat-card.orange .value { color: #f57c00; }
+        .stat-card.purple .value { color: #7b1fa2; }
+
+        .main-grid { display: grid; grid-template-columns: 1fr 350px; gap: 20px; }
+
+        .panel { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+        .panel-header { background: #f8f9fa; padding: 15px; font-weight: 600; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .panel-body { padding: 15px; }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; font-weight: 600; font-size: 12px; color: #666; }
+
+        .sensor-badge { padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+        .sensor-camera0 { background: #e3f2fd; color: #1565c0; }
+        .sensor-camera1 { background: #fff3e0; color: #ef6c00; }
+        .sensor-lidar { background: #f3e5f5; color: #7b1fa2; }
+
+        .check-icon { font-size: 16px; cursor: pointer; }
+        .check-icon.yes { color: #4caf50; }
+        .check-icon.no { color: #ccc; }
+
+        .progress-bar { height: 6px; background: #e0e0e0; border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); }
+
+        .btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-small { padding: 5px 10px; font-size: 11px; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 500px; position: relative; max-height: 90vh; overflow-y: auto; }
+        .modal-content h2 { margin-bottom: 20px; font-size: 20px; }
+        .close-btn { position: absolute; top: 15px; right: 20px; font-size: 24px; cursor: pointer; color: #999; }
+
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 500; color: #555; }
+        .form-group input, .form-group select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+
+        .summary-boxes { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px; }
+        .summary-box { text-align: center; padding: 20px; border-radius: 10px; }
+        .summary-box.completed { background: #e8f5e9; }
+        .summary-box.pending { background: #fff3e0; }
+        .summary-box .number { font-size: 32px; font-weight: 700; }
+        .summary-box.completed .number { color: #2e7d32; }
+        .summary-box.pending .number { color: #f57c00; }
+        .summary-box .text { font-size: 12px; color: #666; margin-top: 5px; }
+
+        .today-item { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        .today-item:last-child { border-bottom: none; }
+        .today-item .name { font-weight: 500; }
+        .today-item .frames { font-weight: 600; color: #4caf50; }
+
+        .log-table { font-size: 12px; }
+        .log-table th, .log-table td { padding: 8px 6px; }
+        .log-table .type-prod { background: #fff3e0; color: #e65100; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+        .log-table .type-qa { background: #e1f5fe; color: #0277bd; padding: 2px 6px; border-radius: 4px; font-size: 10px; }
+        .btn-export { background: #43a047; color: white; }
+        .filter-row { display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; }
+        .filter-row select, .filter-row input { padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 12px; }
+
+        .loading-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); z-index: 2000; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+        .loading-spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .setup-modal { background: white; padding: 30px; border-radius: 12px; max-width: 600px; margin: 20px; }
+        .setup-modal h2 { margin-bottom: 15px; color: #333; }
+        .setup-modal p { margin-bottom: 15px; color: #666; line-height: 1.6; }
+        .setup-modal ol { margin-left: 20px; margin-bottom: 20px; }
+        .setup-modal li { margin-bottom: 10px; color: #555; }
+        .setup-modal input { width: 100%; padding: 12px; border: 2px solid #667eea; border-radius: 8px; font-size: 14px; margin-bottom: 15px; }
+        .setup-modal .btn { width: 100%; padding: 15px; font-size: 16px; }
+
+        .annotator-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 8px; font-size: 14px; }
+        .annotator-item .del-btn { background: #f44336; color: white; border: none; border-radius: 4px; padding: 4px 10px; cursor: pointer; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <p style="margin-top:15px; color:#666;">Connecting to Google Sheets...</p>
+    </div>
+
+    <!-- Setup Modal -->
+    <div class="modal" id="setupModal">
+        <div class="setup-modal">
+            <h2>Setup Google Sheets Connection</h2>
+            <p>To use this dashboard with your team, you need to set up a Google Sheet as the database.</p>
+            <ol>
+                <li>Create a new <a href="https://sheets.new" target="_blank" style="color:#667eea;">Google Sheet</a></li>
+                <li>Go to <strong>Extensions > Apps Script</strong></li>
+                <li>Delete any code and paste the contents of <strong>google-apps-script.js</strong></li>
+                <li>Click <strong>Deploy > New deployment</strong></li>
+                <li>Select <strong>Web app</strong>, set access to <strong>Anyone</strong></li>
+                <li>Copy the Web App URL and paste it below</li>
+            </ol>
+            <input type="text" id="scriptUrlInput" placeholder="Paste your Google Apps Script Web App URL here...">
+            <button class="btn btn-primary" onclick="saveScriptUrl()">Connect to Google Sheets</button>
+            <p style="margin-top:15px; font-size:12px; color:#999;">The URL looks like: https://script.google.com/macros/s/xxxxx/exec</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>LABUST Annotation Tracker V2</h1>
+            <p>Track annotation progress across camera & lidar batches (Cloud Sync)</p>
+            <div class="sync-status">
+                <div class="sync-indicator" id="syncIndicator"></div>
+                <span id="syncText" style="font-size:12px;">Connecting...</span>
+                <button onclick="syncFromCloud()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px; margin-left:10px;">Refresh</button>
+                <button onclick="openManageAnnotators()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Annotators</button>
+                <button onclick="showSetup()" style="background:rgba(255,255,255,0.2); border:none; color:white; padding:6px 10px; border-radius:4px; cursor:pointer; font-size:11px;">Settings</button>
+            </div>
+        </header>
+
+        <!-- Stats -->
+        <div class="stats-row">
+            <div class="stat-card blue">
+                <div class="value" id="totalFrames">0</div>
+                <div class="label">TOTAL FRAMES</div>
+            </div>
+            <div class="stat-card green">
+                <div class="value" id="completedFrames">0</div>
+                <div class="label">COMPLETED</div>
+            </div>
+            <div class="stat-card orange">
+                <div class="value" id="pendingFrames">0</div>
+                <div class="label">PENDING</div>
+            </div>
+            <div class="stat-card purple">
+                <div class="value" id="progressPercent">0%</div>
+                <div class="label">PROGRESS</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Tasks Table -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span>Batches</span>
+                    <button class="btn btn-primary btn-small" onclick="openAddBatchModal()">+ Add Batch</button>
+                </div>
+                <div class="panel-body" style="padding:0; max-height:500px; overflow-y:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Batch Name</th>
+                                <th>Sensor</th>
+                                <th>Frames</th>
+                                <th>Progress</th>
+                                <th>Status</th>
+                                <th>Start Date</th>
+                                <th>Delivered</th>
+                                <th>Paid</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="batchTable"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Right Panel -->
+            <div>
+                <!-- Today's Summary -->
+                <div class="panel" style="margin-bottom:20px;">
+                    <div class="panel-header">Today's Work</div>
+                    <div class="panel-body">
+                        <div id="todaySummary">
+                            <div style="color:#888; text-align:center;">No entries today</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Batch Breakdown -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span>Batch Breakdown</span>
+                    </div>
+                    <div class="panel-body">
+                        <select id="batchSelect" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:6px; margin-bottom:15px;">
+                            <option value="">Select batch...</option>
+                        </select>
+                        <div id="batchBreakdown">
+                            <div style="color:#888; text-align:center;">Select a batch to see who did what</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log Panel -->
+        <div class="panel" style="margin-top:20px;">
+            <div class="panel-header">
+                <span>Activity Log</span>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-export btn-small" onclick="exportToCSV()">Export CSV</button>
+                    <button class="btn btn-primary btn-small" onclick="exportBatchesToCSV()">Export Batches</button>
+                </div>
+            </div>
+            <div class="panel-body">
+                <!-- Filters -->
+                <div class="filter-row">
+                    <select id="filterAnnotator" onchange="renderActivityLog()">
+                        <option value="">All Annotators</option>
+                    </select>
+                    <select id="filterBatch" onchange="renderActivityLog()">
+                        <option value="">All Batches</option>
+                    </select>
+                    <select id="filterType" onchange="renderActivityLog()">
+                        <option value="">All Types</option>
+                        <option value="production">Production</option>
+                        <option value="qa">QA</option>
+                    </select>
+                    <input type="date" id="filterDateFrom" onchange="renderActivityLog()">
+                    <input type="date" id="filterDateTo" onchange="renderActivityLog()">
+                    <button class="btn btn-small" onclick="clearFilters()" style="background:#9e9e9e; color:white;">Clear</button>
+                </div>
+
+                <!-- Log Table -->
+                <div style="max-height:300px; overflow-y:auto;">
+                    <table class="log-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Batch</th>
+                                <th>Annotator</th>
+                                <th>Category</th>
+                                <th>Type</th>
+                                <th>Start#</th>
+                                <th>End#</th>
+                                <th>Frames</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityLogTable"></tbody>
+                    </table>
+                </div>
+                <div id="logSummary" style="margin-top:10px; padding:10px; background:#f8f9fa; border-radius:6px; font-size:12px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Annotators Modal -->
+    <div class="modal" id="manageAnnotatorsModal">
+        <div class="modal-content" style="max-width:420px;">
+            <span class="close-btn" onclick="closeManageAnnotators()">&times;</span>
+            <h2>Manage Annotators</h2>
+            <div id="annotatorList" style="margin-bottom:15px;"></div>
+            <div style="display:flex; gap:8px;">
+                <input type="text" id="newAnnotatorName" placeholder="Enter name..." style="flex:1; padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;">
+                <button class="btn btn-primary" onclick="addAnnotator()">Add</button>
+            </div>
+            <button class="btn btn-success" style="width:100%; margin-top:15px; padding:12px;" onclick="saveAnnotators()">Save to Google Sheets</button>
+        </div>
+    </div>
+
+    <!-- Add Frames Modal -->
+    <div class="modal" id="addFramesModal">
+        <div class="modal-content" style="max-width:550px;">
+            <span class="close-btn" onclick="closeAddFramesModal()">&times;</span>
+            <h2 id="addFramesTitle">Add Frames</h2>
+
+            <div style="background:#e3f2fd; padding:12px; border-radius:8px; margin-bottom:15px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; text-align:center; font-size:12px;">
+                    <div>
+                        <div style="color:#666;">Start Frame</div>
+                        <div style="font-weight:700; font-size:16px; color:#1565c0;" id="modalStartFrame">0</div>
+                    </div>
+                    <div>
+                        <div style="color:#666;">Current Frame</div>
+                        <input type="number" id="modalCurrentFrame" style="width:80px; padding:5px; border:1px solid #90caf9; border-radius:4px; text-align:center; font-weight:700; font-size:14px;" oninput="calcModal()">
+                    </div>
+                    <div>
+                        <div style="color:#666;">End Frame</div>
+                        <div style="font-weight:700; font-size:16px; color:#1565c0;" id="modalEndFrame">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="summary-boxes">
+                <div class="summary-box completed">
+                    <div class="number" id="modalCompleted">0</div>
+                    <div class="text">COMPLETED</div>
+                </div>
+                <div class="summary-box pending">
+                    <div class="number" id="modalPending">0</div>
+                    <div class="text">PENDING</div>
+                </div>
+            </div>
+
+            <div style="background:#f8f9fa; padding:15px; border-radius:8px; margin-bottom:15px;">
+                <div style="display:grid; grid-template-columns:1fr 65px 65px 65px 60px; gap:6px; margin-bottom:8px; font-size:10px; color:#666; font-weight:600;">
+                    <span>Annotator</span>
+                    <span style="text-align:center;">Start#</span>
+                    <span style="text-align:center;">End#</span>
+                    <span style="text-align:center;">Type</span>
+                    <span style="text-align:center;">Frames</span>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 65px 65px 65px 60px; gap:6px; margin-bottom:6px;">
+                    <select id="ann1">
+                        <option value="">Select...</option>
+                    </select>
+                    <input type="number" id="startFrame1" placeholder="Start Frame" style="padding:8px 4px; font-size:11px;" oninput="calcFrames(1)">
+                    <input type="number" id="endFrame1" placeholder="End Frame" style="padding:8px 4px; font-size:11px;" oninput="calcFrames(1)">
+                    <select id="type1" style="padding:8px 2px; font-size:11px;">
+                        <option value="production">Prod</option>
+                        <option value="qa">QA</option>
+                    </select>
+                    <input type="number" id="frames1" placeholder="0" min="0" style="padding:8px 4px; font-size:11px;" oninput="calcModal()">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 65px 65px 65px 60px; gap:6px; margin-bottom:6px;">
+                    <select id="ann2">
+                        <option value="">Select...</option>
+                    </select>
+                    <input type="number" id="startFrame2" placeholder="Start Frame" style="padding:8px 4px; font-size:11px;" oninput="calcFrames(2)">
+                    <input type="number" id="endFrame2" placeholder="End Frame" style="padding:8px 4px; font-size:11px;" oninput="calcFrames(2)">
+                    <select id="type2" style="padding:8px 2px; font-size:11px;">
+                        <option value="production">Prod</option>
+                        <option value="qa">QA</option>
+                    </select>
+                    <input type="number" id="frames2" placeholder="0" min="0" style="padding:8px 4px; font-size:11px;" oninput="calcModal()">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 65px 65px 65px 60px; gap:6px;">
+                    <select id="ann3">
+                        <option value="">Select...</option>
+                    </select>
+                    <input type="number" id="startFrame3" placeholder="Start Frame" style="padding:8px 4px; font-size:11px;" oninput="calcFrames(3)">
+                    <input type="number" id="endFrame3" placeholder="End Frame" style="padding:8px 4px; font-size:11px;" oninput="calcFrames(3)">
+                    <select id="type3" style="padding:8px 2px; font-size:11px;">
+                        <option value="production">Prod</option>
+                        <option value="qa">QA</option>
+                    </select>
+                    <input type="number" id="frames3" placeholder="0" min="0" style="padding:8px 4px; font-size:11px;" oninput="calcModal()">
+                </div>
+            </div>
+
+            <div id="modalOutput" style="background:#e8f5e9; padding:12px; border-radius:8px; margin-bottom:15px; display:none;">
+                <div style="font-weight:600; margin-bottom:8px; color:#2e7d32;">Summary Output:</div>
+                <div id="outputDetails" style="font-size:13px;"></div>
+            </div>
+
+            <div style="text-align:center; font-size:12px; color:#888; margin-bottom:10px;">Logging for: <strong id="modalDateDisplay"></strong></div>
+            <button class="btn btn-success" style="width:100%; padding:15px; font-size:16px;" onclick="submitFrames()">Submit Frames</button>
+        </div>
+    </div>
+
+    <!-- Add Batch Modal -->
+    <div class="modal" id="addBatchModal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeAddBatchModal()">&times;</span>
+            <h2>Add New Batch</h2>
+            <div class="form-group">
+                <label>Batch Name</label>
+                <input type="text" id="newBatchName" placeholder="e.g. 10000_13000">
+            </div>
+            <div class="form-group">
+                <label>Sensor Type</label>
+                <select id="newSensorType">
+                    <option value="camera0">Camera 0</option>
+                    <option value="camera1">Camera 1</option>
+                    <option value="lidar">LIDAR</option>
+                </select>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="form-group">
+                    <label>Start Frame</label>
+                    <input type="number" id="newStartFrame" placeholder="e.g. 10000">
+                </div>
+                <div class="form-group">
+                    <label>End Frame</label>
+                    <input type="number" id="newEndFrame" placeholder="e.g. 13000">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Total Frames</label>
+                <input type="number" id="newTotalFrames" placeholder="e.g. 3000">
+            </div>
+            <button class="btn btn-primary" style="width:100%; padding:12px;" onclick="addBatch()">Add Batch</button>
+        </div>
+    </div>
+
+    <!-- Edit Batch Modal -->
+    <div class="modal" id="editBatchModal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeEditBatchModal()">&times;</span>
+            <h2>Edit Batch</h2>
+            <input type="hidden" id="editBatchId">
+            <div class="form-group">
+                <label>Batch Name</label>
+                <input type="text" id="editBatchName">
+            </div>
+            <div class="form-group">
+                <label>Sensor Type</label>
+                <select id="editSensorType">
+                    <option value="camera0">Camera 0</option>
+                    <option value="camera1">Camera 1</option>
+                    <option value="lidar">LIDAR</option>
+                </select>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="form-group">
+                    <label>Start Frame</label>
+                    <input type="number" id="editStartFrame">
+                </div>
+                <div class="form-group">
+                    <label>End Frame</label>
+                    <input type="number" id="editEndFrame">
+                </div>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                <div class="form-group">
+                    <label>Total Frames</label>
+                    <input type="number" id="editTotalFrames">
+                </div>
+                <div class="form-group">
+                    <label>Completed Frames</label>
+                    <input type="number" id="editCompletedFrames">
+                </div>
+            </div>
+            <button class="btn btn-primary" style="width:100%; padding:12px;" onclick="saveBatchEdit()">Save Changes</button>
+        </div>
+    </div>
+
+    <!-- Edit Log Modal -->
+    <div class="modal" id="editLogModal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeEditLogModal()">&times;</span>
+            <h2>Edit Log Entry</h2>
+            <input type="hidden" id="editLogId">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" id="editLogDate" max="">
+            </div>
+            <div class="form-group">
+                <label>Annotator</label>
+                <select id="editLogAnnotator">
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Work Type</label>
+                <select id="editLogType">
+                    <option value="production">Production</option>
+                    <option value="qa">QA</option>
+                </select>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+                <div class="form-group">
+                    <label>Start Frame</label>
+                    <input type="number" id="editLogStartFrame" oninput="calcEditLogFrames()">
+                </div>
+                <div class="form-group">
+                    <label>End Frame</label>
+                    <input type="number" id="editLogEndFrame" oninput="calcEditLogFrames()">
+                </div>
+                <div class="form-group">
+                    <label>Frames</label>
+                    <input type="number" id="editLogFrames">
+                </div>
+            </div>
+            <button class="btn btn-primary" style="width:100%; padding:12px;" onclick="saveLogEdit()">Save Changes</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // CONFIGURATION
+        // ============================================
+        // Google Sheet published CSV URLs (for reading)
+        const BATCHES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSnePE9EAvUWZqQdSBGFrzMp4bY8NsVmIAlRB39Bpu-_gjayqnBAwNpb-RPMC5OcMaODFfCNrgMVtuV/pub?gid=861472193&output=csv';
+        const LOGS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSnePE9EAvUWZqQdSBGFrzMp4bY8NsVmIAlRB39Bpu-_gjayqnBAwNpb-RPMC5OcMaODFfCNrgMVtuV/pub?gid=2122938425&output=csv';
+        const ANNOTATORS_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSnePE9EAvUWZqQdSBGFrzMp4bY8NsVmIAlRB39Bpu-_gjayqnBAwNpb-RPMC5OcMaODFfCNrgMVtuV/pub?gid=676457266&output=csv';
+        // Apps Script URL for writing
+        let SCRIPT_URL = localStorage.getItem('scriptUrl') || 'https://script.google.com/macros/s/AKfycbzjC8qi9-quPlINCWnyhDH2-d7tK3ytGeIit8-NLFSnQIhgDzkL5Q_lp_Q19ZPx5cFNkA/exec';
+
+        // Data
+        let batches = [];
+        let logs = [];
+        let annotators = ['Deepak', 'Aayushi', 'Sagar', 'Arvind'];
+        let currentBatchId = null;
+        let isSyncing = false;
+        let skipNextRefresh = false;
+        let deletedLogIds = new Set();
+        function getTodayIST() {
+            const now = new Date();
+            const ist = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
+            return ist.toISOString().split('T')[0];
+        }
+
+        function formatDateIST(dateStr) {
+            if (!dateStr) return '-';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+            // Convert UTC ISO string to IST date
+            const d = new Date(dateStr);
+            const ist = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+            return ist.toISOString().split('T')[0];
+        }
+
+        function populateAnnotatorDropdowns() {
+            const options = '<option value="">Select...</option>' + annotators.map(a => `<option value="${a}">${a}</option>`).join('');
+            const filterOptions = '<option value="">All Annotators</option>' + annotators.map(a => `<option value="${a}">${a}</option>`).join('');
+            ['ann1', 'ann2', 'ann3'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = options;
+            });
+            const filterEl = document.getElementById('filterAnnotator');
+            if (filterEl) filterEl.innerHTML = filterOptions;
+            const editEl = document.getElementById('editLogAnnotator');
+            if (editEl) editEl.innerHTML = annotators.map(a => `<option value="${a}">${a}</option>`).join('');
+        }
+
+        // ============================================
+        // CLOUD SYNC FUNCTIONS
+        // ============================================
+
+        function updateSyncStatus(status, text) {
+            const indicator = document.getElementById('syncIndicator');
+            const textEl = document.getElementById('syncText');
+            indicator.className = 'sync-indicator ' + status;
+            textEl.textContent = text;
+        }
+
+        // JSONP request - bypasses CORS by loading data via <script> tag
+        let jsonpCounter = 0;
+        function jsonpRequest(url) {
+            return new Promise((resolve, reject) => {
+                const callbackName = '_jsonp_cb_' + (++jsonpCounter) + '_' + Date.now();
+                const separator = url.includes('?') ? '&' : '?';
+                const script = document.createElement('script');
+                const timeout = setTimeout(() => {
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(new Error('Request timed out'));
+                }, 30000);
+
+                window[callbackName] = function(data) {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    resolve(data);
+                };
+
+                script.src = url + separator + 'callback=' + callbackName;
+                script.onerror = function() {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    reject(new Error('Script load failed'));
+                };
+                document.head.appendChild(script);
+            });
+        }
+
+        // Parse CSV to array of objects
+        function parseCSV(csv) {
+            const rows = [];
+            let row = [];
+            let cell = '';
+            let inQuotes = false;
+
+            for (let i = 0; i < csv.length; i++) {
+                const char = csv[i];
+                const next = csv[i + 1];
+
+                if (char === '"') {
+                    if (inQuotes && next === '"') {
+                        cell += '"';
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    row.push(cell.trim());
+                    cell = '';
+                } else if ((char === '\n' || char === '\r') && !inQuotes) {
+                    if (char === '\r' && next === '\n') i++;
+                    row.push(cell.trim());
+                    if (row.some(v => v !== '')) rows.push(row);
+                    row = [];
+                    cell = '';
+                } else {
+                    cell += char;
+                }
+            }
+
+            if (cell || row.length) {
+                row.push(cell.trim());
+                if (row.some(v => v !== '')) rows.push(row);
+            }
+
+            if (rows.length < 2) return [];
+
+            const headers = rows[0].map(h => h.replace(/^"|"$/g, ''));
+            return rows.slice(1).map(values => {
+                const obj = {};
+                headers.forEach((h, i) => {
+                    let val = values[i] || '';
+                    val = val.replace(/^"|"$/g, '');
+                    if (val === 'TRUE') val = true;
+                    else if (val === 'FALSE') val = false;
+                    else if (val !== '' && !isNaN(val)) val = Number(val);
+                    obj[h] = val;
+                });
+                return obj;
+            }).filter(obj => obj.id);
+        }
+
+        // Save to localStorage
+        function saveToLocal() {
+            localStorage.setItem('batches', JSON.stringify(batches));
+            localStorage.setItem('logs', JSON.stringify(logs));
+            localStorage.setItem('annotators', JSON.stringify(annotators));
+            localStorage.setItem('deletedLogIds', JSON.stringify(Array.from(deletedLogIds)));
+        }
+
+        // Load from localStorage
+        function loadFromLocal() {
+            const savedBatches = localStorage.getItem('batches');
+            const savedLogs = localStorage.getItem('logs');
+            const savedAnnotators = localStorage.getItem('annotators');
+            const savedDeletedLogIds = localStorage.getItem('deletedLogIds');
+            if (savedBatches) batches = JSON.parse(savedBatches);
+            if (savedLogs) logs = JSON.parse(savedLogs);
+            if (savedAnnotators) annotators = JSON.parse(savedAnnotators);
+            if (savedDeletedLogIds) {
+                deletedLogIds = new Set(JSON.parse(savedDeletedLogIds).map(String));
+            }
+        }
+
+        function normalizeBatchFromCsv(b) {
+            const rawStatus = (b.status || 'not-starting').toString().trim();
+            const normalizedStatus = rawStatus.toLowerCase() === 'not-started'
+                ? 'not-starting'
+                : rawStatus.toLowerCase();
+
+            return {
+                id: String(b.id || ''),
+                name: b.name || '',
+                sensor: b.sensor || '',
+                startFrame: Number(b.startFrame || 0),
+                endFrame: Number(b['End Frame'] || b.endFrame || 0),
+                totalFrames: Number(b.totalFrames || 0),
+                completed: Number(b.completed || 0),
+                currentFrame: Number(b.currentFrame || 0),
+                status: normalizedStatus,
+                startDate: b.startDate || '',
+                delivered: b.delivered === true || b.delivered === 'TRUE',
+                deliveredDate: b.deliveredDate || '',
+                paid: b.paid === true || b.paid === 'TRUE',
+                paidDate: b.paidDate || ''
+            };
+        }
+
+        function normalizeLog(log) {
+            return {
+                ...log,
+                id: String(log.id || ''),
+                batchId: String(log.batchId || ''),
+                frames: Number(log.frames || 0),
+                startFrame: Number(log.startFrame || 0),
+                endFrame: Number(log.endFrame || 0)
+            };
+        }
+
+        function mergeCloudWithLocal(cloudBatches, cloudLogs) {
+            const localBatches = batches.map(b => ({ ...b }));
+            const localLogs = logs
+                .filter(l => !deletedLogIds.has(String(l.id)))
+                .map(l => ({ ...l }));
+
+            const mergedLogs = cloudLogs
+                .filter(l => !deletedLogIds.has(String(l.id)))
+                .map(l => ({ ...l }));
+            const cloudLogIds = new Set(cloudLogs.map(l => String(l.id)));
+            localLogs.forEach(log => {
+                if (!cloudLogIds.has(String(log.id))) {
+                    mergedLogs.push(normalizeLog(log));
+                }
+            });
+
+            const batchMap = new Map();
+            cloudBatches.forEach(batch => {
+                batchMap.set(String(batch.id), { ...batch });
+            });
+
+            localBatches.forEach(localBatch => {
+                const id = String(localBatch.id);
+                const cloudBatch = batchMap.get(id);
+                if (!cloudBatch) {
+                    batchMap.set(id, { ...localBatch });
+                    return;
+                }
+
+                if ((localBatch.completed || 0) > (cloudBatch.completed || 0)) {
+                    batchMap.set(id, { ...cloudBatch, ...localBatch });
+                }
+            });
+
+            return {
+                batches: Array.from(batchMap.values()),
+                logs: mergedLogs
+            };
+        }
+
+        async function syncFromCloud() {
+            console.log('Starting sync...', SCRIPT_URL);
+            updateSyncStatus('syncing', 'Syncing...');
+            isSyncing = true;
+            document.getElementById('loadingOverlay').style.display = 'flex';
+
+            try {
+                // Use Apps Script getAll action - same source as saves
+                const data = await fetchFromScript('getAll', {});
+
+                if (data && data.success) {
+                    console.log('Cloud data received:', data.batches?.length, 'batches,', data.logs?.length, 'logs');
+                    const cloudBatches = (data.batches || []).map(normalizeBatchFromCsv);
+                    const cloudLogs = (data.logs || []).map(normalizeLog);
+                    const merged = mergeCloudWithLocal(cloudBatches, cloudLogs);
+
+                    batches = merged.batches;
+                    logs = merged.logs;
+
+                    if (data.annotators && data.annotators.length > 0) {
+                        annotators = data.annotators;
+                    }
+                } else {
+                    console.warn('Cloud fetch returned no data, using local');
+                }
+
+                populateAnnotatorDropdowns();
+                updateSyncStatus('connected', 'Connected');
+                refreshUI();
+                saveToLocal();
+            } catch (error) {
+                console.error('Sync error:', error.message || error);
+                updateSyncStatus('disconnected', 'Disconnected');
+            } finally {
+                isSyncing = false;
+                document.getElementById('loadingOverlay').style.display = 'none';
+            }
+        }
+
+        async function fetchFromScript(action, data) {
+            console.log('fetchFromScript called, SCRIPT_URL:', SCRIPT_URL);
+            if (!SCRIPT_URL) {
+                console.warn('No SCRIPT_URL set - returning null');
+                return null;
+            }
+
+            // Try fetch first
+            try {
+                const url = SCRIPT_URL + '?action=' + action + '&data=' + encodeURIComponent(JSON.stringify(data));
+                console.log('Fetching from:', url);
+
+                const response = await fetch(url);
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error('HTTP ' + response.status);
+                }
+                const text = await response.text();
+                console.log('Raw response:', text.substring(0, 500));
+
+                try {
+                    return JSON.parse(text);
+                } catch {
+                    const match = text.match(/callback\s*\(\s*(\{.*\})\s*\)/s);
+                    if (match) {
+                        return JSON.parse(match[1]);
+                    }
+                    console.warn('Could not parse response as JSON');
+                    return null;
+                }
+            } catch (error) {
+                console.warn('fetch failed, trying JSONP:', error.message);
+            }
+
+            // Fallback to JSONP
+            return new Promise((resolve) => {
+                const callbackName = '_fetch_' + Date.now();
+                const script = document.createElement('script');
+                const timeout = setTimeout(() => {
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    console.warn('JSONP timeout');
+                    resolve(null);
+                }, 15000);
+
+                window[callbackName] = function(response) {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    console.log('JSONP response received');
+                    resolve(response);
+                };
+
+                script.onerror = function() {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    console.warn('JSONP script error');
+                    resolve(null);
+                };
+
+                const url = SCRIPT_URL + '?action=' + action + '&data=' + encodeURIComponent(JSON.stringify(data));
+                script.src = url + '&callback=' + callbackName;
+                document.head.appendChild(script);
+            });
+        }
+
+        function syncToCloud(action, data) {
+            console.log('syncToCloud:', action, data);
+            if (!SCRIPT_URL) {
+                return Promise.resolve(false);
+            }
+
+            skipNextRefresh = true;
+            updateSyncStatus('syncing', 'Saving...');
+
+            const url = SCRIPT_URL + '?action=' + action + '&data=' + encodeURIComponent(JSON.stringify(data));
+            const callbackName = '_save_' + Date.now();
+            const script = document.createElement('script');
+
+            return new Promise((resolve) => {
+                const timeout = setTimeout(() => {
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    updateSyncStatus('disconnected', 'Save timeout');
+                    skipNextRefresh = false;
+                    resolve(false);
+                }, 15000);
+
+                window[callbackName] = function(response) {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+
+                    if (response && response.success) {
+                        updateSyncStatus('connected', 'Saved!');
+                        setTimeout(() => {
+                            skipNextRefresh = false;
+                        }, 3000);
+                        resolve(true);
+                    } else {
+                        updateSyncStatus('disconnected', 'Save failed');
+                        skipNextRefresh = false;
+                        resolve(false);
+                    }
+                };
+
+                script.onerror = function() {
+                    clearTimeout(timeout);
+                    delete window[callbackName];
+                    if (script.parentNode) script.parentNode.removeChild(script);
+                    updateSyncStatus('disconnected', 'Save failed');
+                    skipNextRefresh = false;
+                    resolve(false);
+                };
+
+                script.src = url + '&callback=' + callbackName;
+                document.head.appendChild(script);
+            });
+        }
+
+        function showSetup() {
+            document.getElementById('setupModal').classList.add('active');
+            document.getElementById('loadingOverlay').style.display = 'none';
+            if (SCRIPT_URL) {
+                document.getElementById('scriptUrlInput').value = SCRIPT_URL;
+            }
+        }
+
+        function saveScriptUrl() {
+            const url = document.getElementById('scriptUrlInput').value.trim();
+            if (!url || !url.includes('script.google.com')) {
+                alert('Please enter a valid Google Apps Script URL');
+                return;
+            }
+
+            SCRIPT_URL = url;
+            localStorage.setItem('scriptUrl', url);
+            document.getElementById('setupModal').classList.remove('active');
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            syncFromCloud();
+        }
+
+        // ============================================
+        // UI RENDERING
+        // ============================================
+
+        function refreshUI() {
+            updateStats();
+            renderTable();
+            renderBatchSelect();
+            renderFilterBatchSelect();
+            renderTodaySummary();
+            renderActivityLog();
+        }
+
+        function updateStats() {
+            const total = batches.reduce((s, b) => s + (b.totalFrames || 0), 0);
+            const completed = batches.reduce((s, b) => s + (b.completed || 0), 0);
+            const pending = total - completed;
+            const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+            document.getElementById('totalFrames').textContent = total.toLocaleString();
+            document.getElementById('completedFrames').textContent = completed.toLocaleString();
+            document.getElementById('pendingFrames').textContent = pending.toLocaleString();
+            document.getElementById('progressPercent').textContent = progress + '%';
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('batchTable');
+            tbody.innerHTML = batches.map(b => {
+                const progress = b.totalFrames > 0 ? Math.round((b.completed / b.totalFrames) * 100) : 0;
+                const delivered = b.delivered || false;
+                const paid = b.paid || false;
+
+                return `
+                    <tr>
+                        <td><strong>${b.name}</strong></td>
+                        <td><span class="sensor-badge sensor-${b.sensor}">${b.sensor}</span></td>
+                        <td>${(b.completed || 0).toLocaleString()} / ${(b.totalFrames || 0).toLocaleString()}</td>
+                        <td style="width:80px;">
+                            <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
+                            <small>${progress}%</small>
+                        </td>
+                        <td>
+                            <select onchange="updateStatus('${b.id}', this.value)" style="padding:4px 6px; border-radius:6px; border:1px solid #ddd; font-size:10px;">
+                                <option value="not-starting" ${b.status === 'not-starting' ? 'selected' : ''}>Not Starting</option>
+                                <option value="running" ${b.status === 'running' ? 'selected' : ''}>Running</option>
+                                <option value="qa" ${b.status === 'qa' ? 'selected' : ''}>QA</option>
+                                <option value="completed" ${b.status === 'completed' ? 'selected' : ''}>Completed</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="date" value="${b.startDate || ''}" onchange="updateDate('${b.id}', this.value)" style="padding:2px 4px; border:1px solid #ddd; border-radius:4px; font-size:10px; width:100px;">
+                        </td>
+                        <td style="text-align:center;">
+                            <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
+                                <span class="check-icon ${delivered ? 'yes' : 'no'}" onclick="toggleDelivered('${b.id}')" style="font-size:14px;">${delivered ? '&#10004;' : '&#9675;'}</span>
+                                <input type="date" value="${b.deliveredDate || ''}" onchange="updateDeliveredDate('${b.id}', this.value)" style="padding:1px 2px; border:1px solid #ddd; border-radius:3px; font-size:9px; width:85px;">
+                            </div>
+                        </td>
+                        <td style="text-align:center;">
+                            <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
+                                <span class="check-icon ${paid ? 'yes' : 'no'}" onclick="togglePaid('${b.id}')" style="font-size:14px;">${paid ? '&#10004;' : '&#9675;'}</span>
+                                <input type="date" value="${b.paidDate || ''}" onchange="updatePaidDate('${b.id}', this.value)" style="padding:1px 2px; border:1px solid #ddd; border-radius:3px; font-size:9px; width:85px;">
+                            </div>
+                        </td>
+                        <td>
+                            <div style="display:flex; gap:4px;">
+                                <button class="btn btn-success btn-small" onclick="openAddFramesModal('${b.id}')" style="padding:4px 6px; font-size:10px;">+</button>
+                                <button class="btn btn-small" onclick="openEditBatchModal('${b.id}')" style="padding:4px 6px; font-size:10px; background:#2196f3; color:white;">&#9998;</button>
+                                <button class="btn btn-small" onclick="deleteBatch('${b.id}')" style="padding:4px 6px; font-size:10px; background:#f44336; color:white;">&#10005;</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderBatchSelect() {
+            const select = document.getElementById('batchSelect');
+            select.innerHTML = '<option value="">Select batch...</option>' +
+                batches.map(b => `<option value="${b.id}">${b.name} (${b.sensor})</option>`).join('');
+        }
+
+        function renderFilterBatchSelect() {
+            const select = document.getElementById('filterBatch');
+            const current = select.value;
+            select.innerHTML = '<option value="">All Batches</option>' +
+                batches.map(b => `<option value="${b.id}">${b.name} (${b.sensor})</option>`).join('');
+            select.value = current;
+        }
+
+        function renderTodaySummary() {
+            const today = getTodayIST();
+            const todayLogs = logs.filter(l => l.date === today);
+
+            const byAnnotator = {};
+            todayLogs.forEach(l => {
+                if (!byAnnotator[l.annotator]) byAnnotator[l.annotator] = 0;
+                byAnnotator[l.annotator] += l.frames;
+            });
+
+            const container = document.getElementById('todaySummary');
+            const entries = Object.entries(byAnnotator);
+
+            if (entries.length === 0) {
+                container.innerHTML = '<div style="color:#888; text-align:center;">No entries today</div>';
+                return;
+            }
+
+            const total = entries.reduce((s, [_, f]) => s + f, 0);
+            container.innerHTML = `
+                <div style="text-align:center; padding:10px; background:#e8f5e9; border-radius:8px; margin-bottom:15px;">
+                    <strong style="color:#2e7d32;">Total Today: ${total.toLocaleString()} frames</strong>
+                </div>
+                ${entries.map(([name, frames]) => `
+                    <div class="today-item">
+                        <span class="name">${name}</span>
+                        <span class="frames">+${frames.toLocaleString()}</span>
+                    </div>
+                `).join('')}
+            `;
+        }
+
+        function renderBatchBreakdown() {
+            const batchId = document.getElementById('batchSelect').value;
+            const container = document.getElementById('batchBreakdown');
+
+            if (!batchId) {
+                container.innerHTML = '<div style="color:#888; text-align:center;">Select a batch to see who did what</div>';
+                return;
+            }
+
+            const batch = batches.find(b => b.id === batchId);
+            const batchLogs = logs.filter(l => l.batchId === batchId);
+
+            const byAnnotator = {};
+            batchLogs.forEach(l => {
+                if (!byAnnotator[l.annotator]) byAnnotator[l.annotator] = 0;
+                byAnnotator[l.annotator] += l.frames;
+            });
+
+            const entries = Object.entries(byAnnotator).sort((a, b) => b[1] - a[1]);
+
+            if (entries.length === 0) {
+                container.innerHTML = '<div style="color:#888; text-align:center;">No contributions yet</div>';
+                return;
+            }
+
+            container.innerHTML = entries.map(([name, frames]) => {
+                const pct = batch.completed > 0 ? Math.round((frames / batch.completed) * 100) : 0;
+                return `
+                    <div style="display:flex; justify-content:space-between; padding:10px; background:#f8f9fa; border-radius:6px; margin-bottom:8px;">
+                        <div>
+                            <strong>${name}</strong>
+                            <span style="background:#667eea; color:white; padding:2px 6px; border-radius:10px; font-size:10px; margin-left:5px;">${pct}%</span>
+                        </div>
+                        <div style="font-weight:600; color:#4caf50;">${frames.toLocaleString()}</div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderActivityLog() {
+            const filterAnnotator = document.getElementById('filterAnnotator').value;
+            const filterBatch = document.getElementById('filterBatch').value;
+            const filterType = document.getElementById('filterType').value;
+            const filterDateFrom = document.getElementById('filterDateFrom').value;
+            const filterDateTo = document.getElementById('filterDateTo').value;
+
+            let filteredLogs = logs.filter(l => {
+                if (filterAnnotator && l.annotator !== filterAnnotator) return false;
+                if (filterBatch && l.batchId !== filterBatch) return false;
+                if (filterType && l.workType !== filterType) return false;
+                if (filterDateFrom && l.date < filterDateFrom) return false;
+                if (filterDateTo && l.date > filterDateTo) return false;
+                return true;
+            });
+
+            filteredLogs.sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
+
+            const tbody = document.getElementById('activityLogTable');
+
+            if (filteredLogs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#888; padding:20px;">No log entries found</td></tr>';
+                document.getElementById('logSummary').innerHTML = '';
+                return;
+            }
+
+            tbody.innerHTML = filteredLogs.map(l => {
+                const typeClass = l.workType === 'production' ? 'type-prod' : 'type-qa';
+                const typeLabel = l.workType === 'production' ? 'Prod' : 'QA';
+                const batch = batches.find(b => b.id === l.batchId);
+                const sensor = batch ? batch.sensor : '-';
+                const sensorLabel = sensor === 'camera0' ? 'Camera 0' : sensor === 'camera1' ? 'Camera 1' : sensor === 'lidar' ? 'LiDAR' : sensor;
+                const sensorClass = sensor === 'lidar' ? 'sensor-lidar' : sensor === 'camera1' ? 'sensor-camera1' : 'sensor-camera0';
+                return `
+                    <tr>
+                        <td>${formatDateIST(l.date)}</td>
+                        <td><strong>${l.batchName || '-'}</strong></td>
+                        <td>${l.annotator}</td>
+                        <td><span class="sensor-badge ${sensorClass}">${sensorLabel}</span></td>
+                        <td><span class="${typeClass}">${typeLabel}</span></td>
+                        <td>${l.startFrame !== null && l.startFrame !== undefined ? l.startFrame : '-'}</td>
+                        <td>${l.endFrame !== null && l.endFrame !== undefined ? l.endFrame : '-'}</td>
+                        <td style="font-weight:600;">${(l.frames || 0).toLocaleString()}</td>
+                        <td>
+                            <div style="display:flex; gap:4px;">
+                                <button class="btn btn-small" onclick="openEditLogModal('${l.id}')" style="padding:3px 6px; font-size:10px; background:#2196f3; color:white;">&#9998;</button>
+                                <button class="btn btn-small" onclick="deleteLog('${l.id}')" style="padding:3px 6px; font-size:10px; background:#f44336; color:white;">&#10005;</button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            const totalFrames = filteredLogs.reduce((s, l) => s + (l.frames || 0), 0);
+            const prodFrames = filteredLogs.filter(l => l.workType === 'production').reduce((s, l) => s + (l.frames || 0), 0);
+            const qaFrames = filteredLogs.filter(l => l.workType === 'qa').reduce((s, l) => s + (l.frames || 0), 0);
+
+            document.getElementById('logSummary').innerHTML = `
+                <div style="display:flex; gap:20px; justify-content:center; flex-wrap:wrap;">
+                    <span><strong>Total Entries:</strong> ${filteredLogs.length}</span>
+                    <span><strong>Total Frames:</strong> ${totalFrames.toLocaleString()}</span>
+                    <span style="color:#e65100;"><strong>Production:</strong> ${prodFrames.toLocaleString()}</span>
+                    <span style="color:#0277bd;"><strong>QA:</strong> ${qaFrames.toLocaleString()}</span>
+                </div>
+            `;
+        }
+
+        function clearFilters() {
+            document.getElementById('filterAnnotator').value = '';
+            document.getElementById('filterBatch').value = '';
+            document.getElementById('filterType').value = '';
+            document.getElementById('filterDateFrom').value = '';
+            document.getElementById('filterDateTo').value = '';
+            renderActivityLog();
+        }
+
+        // ============================================
+        // BATCH OPERATIONS
+        // ============================================
+
+        function updateStatus(id, newStatus) {
+            const batch = batches.find(b => b.id === id);
+            if (batch) {
+                batch.status = newStatus;
+                syncToCloud('updateBatch', { batch });
+            }
+        }
+
+        function updateDate(id, newDate) {
+            const batch = batches.find(b => b.id === id);
+            if (batch) {
+                batch.startDate = newDate;
+                syncToCloud('updateBatch', { batch });
+            }
+        }
+
+        function toggleDelivered(id) {
+            const batch = batches.find(b => b.id === id);
+            if (batch) {
+                batch.delivered = !batch.delivered;
+                if (batch.delivered && !batch.deliveredDate) {
+                    batch.deliveredDate = getTodayIST();
+                }
+                syncToCloud('updateBatch', { batch });
+                renderTable();
+            }
+        }
+
+        function togglePaid(id) {
+            const batch = batches.find(b => b.id === id);
+            if (batch) {
+                batch.paid = !batch.paid;
+                if (batch.paid && !batch.paidDate) {
+                    batch.paidDate = getTodayIST();
+                }
+                syncToCloud('updateBatch', { batch });
+                renderTable();
+            }
+        }
+
+        function updateDeliveredDate(id, date) {
+            const batch = batches.find(b => b.id === id);
+            if (batch) {
+                batch.deliveredDate = date;
+                syncToCloud('updateBatch', { batch });
+            }
+        }
+
+        function updatePaidDate(id, date) {
+            const batch = batches.find(b => b.id === id);
+            if (batch) {
+                batch.paidDate = date;
+                syncToCloud('updateBatch', { batch });
+            }
+        }
+
+        function deleteBatch(id) {
+            if (!confirm('Delete this batch and ALL its log entries?')) return;
+            batches = batches.filter(b => b.id !== id);
+            logs = logs.filter(l => l.batchId !== id);
+            refreshUI();
+            syncToCloud('deleteBatch', { id });
+        }
+
+        function openAddBatchModal() {
+            document.getElementById('addBatchModal').classList.add('active');
+        }
+
+        function closeAddBatchModal() {
+            document.getElementById('addBatchModal').classList.remove('active');
+        }
+
+        function addBatch() {
+            const name = document.getElementById('newBatchName').value.trim();
+            const sensor = document.getElementById('newSensorType').value;
+            const startFrame = parseInt(document.getElementById('newStartFrame').value) || 0;
+            const endFrame = parseInt(document.getElementById('newEndFrame').value) || 0;
+            const totalFrames = parseInt(document.getElementById('newTotalFrames').value) || (endFrame - startFrame + 1);
+
+            if (!name) {
+                alert('Please enter a batch name');
+                return;
+            }
+
+            const batch = {
+                id: Date.now().toString(),
+                name,
+                sensor,
+                startFrame,
+                endFrame,
+                totalFrames,
+                completed: 0,
+                currentFrame: startFrame,
+                status: 'not-starting'
+            };
+
+            batches.push(batch);
+            refreshUI();
+            syncToCloud('addBatch', { batch });
+
+            closeAddBatchModal();
+            document.getElementById('newBatchName').value = '';
+            document.getElementById('newStartFrame').value = '';
+            document.getElementById('newEndFrame').value = '';
+            document.getElementById('newTotalFrames').value = '';
+        }
+
+        function openEditBatchModal(id) {
+            const batch = batches.find(b => b.id === id);
+            if (!batch) return;
+
+            document.getElementById('editBatchId').value = id;
+            document.getElementById('editBatchName').value = batch.name;
+            document.getElementById('editSensorType').value = batch.sensor;
+            document.getElementById('editStartFrame').value = batch.startFrame;
+            document.getElementById('editEndFrame').value = batch.endFrame;
+            document.getElementById('editTotalFrames').value = batch.totalFrames;
+            document.getElementById('editCompletedFrames').value = batch.completed;
+
+            document.getElementById('editBatchModal').classList.add('active');
+        }
+
+        function closeEditBatchModal() {
+            document.getElementById('editBatchModal').classList.remove('active');
+        }
+
+        function saveBatchEdit() {
+            const id = document.getElementById('editBatchId').value;
+            const batch = batches.find(b => b.id === id);
+            if (!batch) return;
+
+            batch.name = document.getElementById('editBatchName').value;
+            batch.sensor = document.getElementById('editSensorType').value;
+            batch.startFrame = parseInt(document.getElementById('editStartFrame').value) || 0;
+            batch.endFrame = parseInt(document.getElementById('editEndFrame').value) || 0;
+            batch.totalFrames = parseInt(document.getElementById('editTotalFrames').value) || 0;
+            batch.completed = parseInt(document.getElementById('editCompletedFrames').value) || 0;
+
+            refreshUI();
+            syncToCloud('updateBatch', { batch });
+            closeEditBatchModal();
+        }
+
+        // ============================================
+        // FRAME LOGGING
+        // ============================================
+
+        function openAddFramesModal(id) {
+            currentBatchId = id;
+            const batch = batches.find(b => b.id === id);
+
+            document.getElementById('addFramesTitle').textContent = `Add Frames - ${batch.name}`;
+            ['1', '2', '3'].forEach(n => {
+                document.getElementById('ann' + n).value = '';
+                document.getElementById('type' + n).value = 'production';
+                document.getElementById('frames' + n).value = '';
+                document.getElementById('startFrame' + n).value = '';
+                document.getElementById('endFrame' + n).value = '';
+            });
+
+            document.getElementById('modalStartFrame').textContent = batch.startFrame || 0;
+            document.getElementById('modalEndFrame').textContent = batch.endFrame || 0;
+            document.getElementById('modalCurrentFrame').value = batch.currentFrame || batch.startFrame || '';
+            document.getElementById('modalCompleted').textContent = batch.completed || 0;
+            const pending = (batch.totalFrames || 0) - (batch.completed || 0);
+            document.getElementById('modalPending').textContent = pending > 0 ? pending : 0;
+            document.getElementById('modalDateDisplay').textContent = getTodayIST();
+            document.getElementById('modalOutput').style.display = 'none';
+
+            document.getElementById('addFramesModal').classList.add('active');
+        }
+
+        function closeAddFramesModal() {
+            document.getElementById('addFramesModal').classList.remove('active');
+            currentBatchId = null;
+        }
+
+        function calcFrames(n) {
+            const start = parseInt(document.getElementById('startFrame' + n).value) || 0;
+            const end = parseInt(document.getElementById('endFrame' + n).value) || 0;
+            const frames = end >= start ? (end - start + 1) : 0;
+            document.getElementById('frames' + n).value = frames;
+            calcModal();
+        }
+
+        function calcModal() {
+            const current = parseInt(document.getElementById('modalCurrentFrame').value) || 0;
+            const batch = batches.find(b => b.id === currentBatchId);
+            if (!batch) return;
+
+            const pending = Math.max(0, (batch.totalFrames || 0) - (batch.completed || 0));
+            document.getElementById('modalPending').textContent = pending;
+        }
+
+        function submitFrames() {
+            if (!currentBatchId) return;
+
+            const batch = batches.find(b => b.id === currentBatchId);
+            const today = getTodayIST();
+            let prodAdded = 0;
+            let qaAdded = 0;
+
+            const entries = [];
+            const newLogs = [];
+            for (let n = 1; n <= 3; n++) {
+                const name = document.getElementById('ann' + n).value;
+                const type = document.getElementById('type' + n).value;
+                const frames = parseInt(document.getElementById('frames' + n).value) || 0;
+                const startFrame = parseInt(document.getElementById('startFrame' + n).value) || 0;
+                const endFrame = parseInt(document.getElementById('endFrame' + n).value) || 0;
+
+                if (name && frames > 0) {
+                    entries.push({ name, type, frames, startFrame, endFrame });
+                }
+            }
+
+            if (entries.length === 0) {
+                alert('Please add at least one entry');
+                return;
+            }
+
+            for (const e of entries) {
+                const batchName = batch ? batch.name : 'Unknown';
+                const log = {
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                    date: today,
+                    batchId: currentBatchId,
+                    batchName: batchName,
+                    annotator: e.name,
+                    workType: e.type,
+                    frames: e.frames,
+                    startFrame: e.startFrame,
+                    endFrame: e.endFrame
+                };
+                logs.push(log);
+                newLogs.push(log);
+
+                if (e.type === 'production') {
+                    prodAdded += e.frames;
+                } else {
+                    qaAdded += e.frames;
+                }
+            }
+
+            batch.completed = Math.min((batch.completed || 0) + prodAdded, batch.totalFrames);
+            batch.currentFrame = parseInt(document.getElementById('modalCurrentFrame').value) || batch.currentFrame;
+
+            if (batch.status === 'not-starting') {
+                batch.status = 'running';
+                if (!batch.startDate) {
+                    batch.startDate = today;
+                }
+            }
+            if (batch.completed >= batch.totalFrames) {
+                batch.status = 'completed';
+            }
+
+            // Save to local storage
+            saveToLocal();
+
+            // Save only the changed records to avoid oversized URLs
+            if (batch) {
+                syncToCloud('updateBatch', { batch });
+            }
+            newLogs.forEach(log => {
+                syncToCloud('addLog', { log });
+            });
+
+            // Just refresh UI, don't re-fetch from cloud
+            refreshUI();
+
+            let msg = `Production: +${prodAdded} frames (added to completed)`;
+            if (qaAdded > 0) {
+                msg += `\nQA: ${qaAdded} frames (review only, not added)`;
+            }
+            msg += `\n\nTotal Completed: ${batch.completed}/${batch.totalFrames}`;
+            alert(msg);
+            closeAddFramesModal();
+        }
+
+        // ============================================
+        // LOG OPERATIONS
+        // ============================================
+
+        function openEditLogModal(id) {
+            const log = logs.find(l => l.id === id);
+            if (!log) return;
+
+            document.getElementById('editLogId').value = id;
+            document.getElementById('editLogDate').max = getTodayIST();
+            document.getElementById('editLogDate').value = log.date;
+            document.getElementById('editLogAnnotator').value = log.annotator;
+            document.getElementById('editLogType').value = log.workType || 'production';
+            document.getElementById('editLogStartFrame').value = log.startFrame || '';
+            document.getElementById('editLogEndFrame').value = log.endFrame || '';
+            document.getElementById('editLogFrames').value = log.frames;
+
+            document.getElementById('editLogModal').classList.add('active');
+        }
+
+        function closeEditLogModal() {
+            document.getElementById('editLogModal').classList.remove('active');
+        }
+
+        function calcEditLogFrames() {
+            const start = document.getElementById('editLogStartFrame').value;
+            const end = document.getElementById('editLogEndFrame').value;
+            if (start !== '' && end !== '') {
+                const s = parseInt(start);
+                const e = parseInt(end);
+                if (e >= s) {
+                    document.getElementById('editLogFrames').value = (e - s) + 1;
+                }
+            }
+        }
+
+        function saveLogEdit() {
+            const id = document.getElementById('editLogId').value;
+            const log = logs.find(l => l.id === id);
+            if (!log) return;
+
+            const oldFrames = log.frames || 0;
+            const oldType = log.workType;
+
+            log.date = document.getElementById('editLogDate').value;
+            log.annotator = document.getElementById('editLogAnnotator').value;
+            log.workType = document.getElementById('editLogType').value;
+            log.startFrame = parseInt(document.getElementById('editLogStartFrame').value) || 0;
+            log.endFrame = parseInt(document.getElementById('editLogEndFrame').value) || 0;
+            log.frames = parseInt(document.getElementById('editLogFrames').value) || 0;
+
+            // Adjust batch completed if frames changed
+            if (oldType === 'production') {
+                const batch = batches.find(b => b.id === log.batchId);
+                if (batch) {
+                    batch.completed = Math.max(0, batch.completed - oldFrames + log.frames);
+                }
+            }
+
+            refreshUI();
+            syncToCloud('saveAll', { batches: batches, logs: logs });
+            closeEditLogModal();
+            alert('Log entry updated!');
+        }
+
+         async function deleteLog(id) {
+            if (!confirm('Delete this log entry? This will also update the batch completed count.')) return;
+
+            // Find the log entry
+            let log = logs.find(l => String(l.id) === String(id));
+            if (!log) {
+                alert('Log not found. Try refreshing the page.');
+                return;
+            }
+
+            const framesDeleted = log.frames || 0;
+            const isProduction = log.workType === 'production';
+            const batchId = log.batchId;
+
+            // Remove from local array
+            deletedLogIds.add(String(id));
+            logs = logs.filter(l => String(l.id) !== String(id));
+
+            // Update batch completed count
+            if (isProduction) {
+                const batch = batches.find(b => String(b.id) === String(batchId));
+                if (batch) {
+                    batch.completed = Math.max(0, batch.completed - framesDeleted);
+                }
+            }
+
+            saveToLocal();
+            refreshUI();
+            
+            // Save to cloud and wait for it
+            await syncToCloud('saveAll', { batches: batches, logs: logs });
+            
+            // Force re-fetch from cloud after save
+            setTimeout(() => {
+                syncFromCloud();
+            }, 1000);
+        }
+        
+        // ============================================
+        // ANNOTATOR MANAGEMENT
+        // ============================================
+
+        function openManageAnnotators() {
+            renderAnnotatorList();
+            document.getElementById('manageAnnotatorsModal').classList.add('active');
+        }
+
+        function closeManageAnnotators() {
+            document.getElementById('manageAnnotatorsModal').classList.remove('active');
+        }
+
+        function renderAnnotatorList() {
+            const container = document.getElementById('annotatorList');
+            if (annotators.length === 0) {
+                container.innerHTML = '<div style="color:#888; text-align:center; padding:10px;">No annotators yet</div>';
+                return;
+            }
+            container.innerHTML = annotators.map((name, i) => `
+                <div class="annotator-item">
+                    <span>${name}</span>
+                    <button class="del-btn" onclick="removeAnnotator(${i})">Remove</button>
+                </div>
+            `).join('');
+        }
+
+        function addAnnotator() {
+            const name = document.getElementById('newAnnotatorName').value.trim();
+            if (!name) return;
+            if (annotators.includes(name)) {
+                alert('Annotator already exists');
+                return;
+            }
+            annotators.push(name);
+            document.getElementById('newAnnotatorName').value = '';
+            renderAnnotatorList();
+        }
+
+        function removeAnnotator(index) {
+            annotators.splice(index, 1);
+            renderAnnotatorList();
+        }
+
+        function saveAnnotators() {
+            syncToCloud('updateAnnotators', { annotators });
+            closeManageAnnotators();
+            populateAnnotatorDropdowns();
+            alert('Annotators saved!');
+        }
+
+        // ============================================
+        // EXPORT FUNCTIONS
+        // ============================================
+
+        function exportToCSV() {
+            let csv = 'Date,Batch,Annotator,Sensor,Type,Start Frame,End Frame,Frames\n';
+            logs.forEach(l => {
+                const batch = batches.find(b => b.id === l.batchId);
+                const sensor = batch ? batch.sensor : '';
+                csv += `${l.date},${l.batchName || ''},${l.annotator},${sensor},${l.workType || ''},${l.startFrame || ''},${l.endFrame || ''},${l.frames || 0}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `activity_log_${getTodayIST()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportBatchesToCSV() {
+            let csv = 'Batch Name,Sensor,Total Frames,Completed,Pending,Progress %,Status,Start Date,Delivered,Delivered Date,Paid,Paid Date\n';
+            batches.forEach(b => {
+                const pending = (b.totalFrames || 0) - (b.completed || 0);
+                const progress = b.totalFrames > 0 ? Math.round((b.completed / b.totalFrames) * 100) : 0;
+                csv += `${b.name},${b.sensor},${b.totalFrames || 0},${b.completed || 0},${pending},${progress}%,${b.status || ''},${b.startDate || ''},${b.delivered ? 'Yes' : 'No'},${b.deliveredDate || ''},${b.paid ? 'Yes' : 'No'},${b.paidDate || ''}\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `batches_${getTodayIST()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+
+        populateAnnotatorDropdowns();
+
+
+        // Init - show local fast, then always sync from cloud
+        try {
+            loadFromLocal();
+            refreshUI();
+            updateSyncStatus('syncing', 'Syncing...');
+            document.getElementById('loadingOverlay').style.display = 'flex';
+
+            if (SCRIPT_URL) {
+                console.log('Loading from cloud...');
+                syncFromCloud();
+            } else {
+                updateSyncStatus('connected', 'Loaded from browser');
+                document.getElementById('loadingOverlay').style.display = 'none';
+                console.log('Init complete');
+            }
+        } catch(e) {
+            console.error('Init error:', e);
+            alert('Error: ' + e.message);
+        }
+    </script>
+</body>
+</html>
