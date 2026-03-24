@@ -783,35 +783,28 @@
                     return;
                 }
 
-                const callbackName = '_fetch_' + Date.now();
-                const script = document.createElement('script');
-                const timeout = setTimeout(() => {
-                    delete window[callbackName];
-                    if (script.parentNode) script.parentNode.removeChild(script);
-                    console.warn('JSONP timeout');
-                    resolve(null);
-                }, 15000);
-
-                window[callbackName] = function(response) {
-                    clearTimeout(timeout);
-                    delete window[callbackName];
-                    if (script.parentNode) script.parentNode.removeChild(script);
-                    console.log('JSONP response received:', response ? 'success' : 'null');
-                    resolve(response);
-                };
-
-                script.onerror = function() {
-                    clearTimeout(timeout);
-                    delete window[callbackName];
-                    if (script.parentNode) script.parentNode.removeChild(script);
-                    console.warn('JSONP script error');
-                    resolve(null);
-                };
-
                 const url = SCRIPT_URL + '?action=' + action + '&data=' + encodeURIComponent(JSON.stringify(data));
-                console.log('JSONP fetching from:', url);
-                script.src = url + '&callback=' + callbackName;
-                document.head.appendChild(script);
+                console.log('Fetching from:', url);
+
+                fetch(url)
+                    .then(response => {
+                        console.log('Fetch response status:', response.status);
+                        return response.text();
+                    })
+                    .then(text => {
+                        console.log('Raw response:', text.substring(0, 300));
+                        try {
+                            const json = JSON.parse(text);
+                            resolve(json);
+                        } catch(e) {
+                            console.warn('JSON parse failed:', e.message);
+                            resolve(null);
+                        }
+                    })
+                    .catch(err => {
+                        console.warn('Fetch failed:', err.message);
+                        resolve(null);
+                    });
             });
         }
 
