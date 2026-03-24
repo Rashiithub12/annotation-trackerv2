@@ -772,42 +772,15 @@
             }
         }
 
-        async function fetchFromScript(action, data) {
-            console.log('fetchFromScript called, SCRIPT_URL:', SCRIPT_URL);
-            if (!SCRIPT_URL) {
-                console.warn('No SCRIPT_URL set - returning null');
-                return null;
-            }
-
-            // Try fetch first
-            try {
-                const url = SCRIPT_URL + '?action=' + action + '&data=' + encodeURIComponent(JSON.stringify(data));
-                console.log('Fetching from:', url);
-
-                const response = await fetch(url);
-                console.log('Response status:', response.status);
-                if (!response.ok) {
-                    throw new Error('HTTP ' + response.status);
-                }
-                const text = await response.text();
-                console.log('Raw response:', text.substring(0, 500));
-
-                try {
-                    return JSON.parse(text);
-                } catch {
-                    const match = text.match(/callback\s*\(\s*(\{.*\})\s*\)/s);
-                    if (match) {
-                        return JSON.parse(match[1]);
-                    }
-                    console.warn('Could not parse response as JSON');
-                    return null;
-                }
-            } catch (error) {
-                console.warn('fetch failed, trying JSONP:', error.message);
-            }
-
-            // Fallback to JSONP
+        function fetchFromScript(action, data) {
             return new Promise((resolve) => {
+                console.log('fetchFromScript called, SCRIPT_URL:', SCRIPT_URL);
+                if (!SCRIPT_URL) {
+                    console.warn('No SCRIPT_URL set - returning null');
+                    resolve(null);
+                    return;
+                }
+
                 const callbackName = '_fetch_' + Date.now();
                 const script = document.createElement('script');
                 const timeout = setTimeout(() => {
@@ -821,7 +794,7 @@
                     clearTimeout(timeout);
                     delete window[callbackName];
                     if (script.parentNode) script.parentNode.removeChild(script);
-                    console.log('JSONP response received');
+                    console.log('JSONP response received:', response ? 'success' : 'null');
                     resolve(response);
                 };
 
@@ -834,6 +807,7 @@
                 };
 
                 const url = SCRIPT_URL + '?action=' + action + '&data=' + encodeURIComponent(JSON.stringify(data));
+                console.log('JSONP fetching from:', url);
                 script.src = url + '&callback=' + callbackName;
                 document.head.appendChild(script);
             });
