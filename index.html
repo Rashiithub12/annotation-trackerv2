@@ -527,6 +527,19 @@
             return ist.toISOString().split('T')[0];
         }
 
+        // Extract yyyy-MM-dd from any date string for HTML date inputs
+        function toDateInputFormat(dateStr) {
+            if (!dateStr) return '';
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
+            try {
+                const d = new Date(dateStr);
+                const ist = new Date(d.getTime() + (5.5 * 60 * 60 * 1000));
+                return ist.toISOString().split('T')[0];
+            } catch {
+                return '';
+            }
+        }
+
         function populateAnnotatorDropdowns() {
             const options = '<option value="">Select...</option>' + annotators.map(a => `<option value="${a}">${a}</option>`).join('');
             const filterOptions = '<option value="">All Annotators</option>' + annotators.map(a => `<option value="${a}">${a}</option>`).join('');
@@ -934,18 +947,18 @@
                             </select>
                         </td>
                         <td>
-                            <input type="date" value="${b.startDate || ''}" onchange="updateDate('${b.id}', this.value)" style="padding:2px 4px; border:1px solid #ddd; border-radius:4px; font-size:10px; width:100px;">
+                            <input type="date" value="${toDateInputFormat(b.startDate)}" onchange="updateDate('${b.id}', this.value)" style="padding:2px 4px; border:1px solid #ddd; border-radius:4px; font-size:10px; width:100px;">
                         </td>
                         <td style="text-align:center;">
                             <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
                                 <span class="check-icon ${delivered ? 'yes' : 'no'}" onclick="toggleDelivered('${b.id}')" style="font-size:14px;">${delivered ? '&#10004;' : '&#9675;'}</span>
-                                <input type="date" value="${b.deliveredDate || ''}" onchange="updateDeliveredDate('${b.id}', this.value)" style="padding:1px 2px; border:1px solid #ddd; border-radius:3px; font-size:9px; width:85px;">
+                                <input type="date" value="${toDateInputFormat(b.deliveredDate)}" onchange="updateDeliveredDate('${b.id}', this.value)" style="padding:1px 2px; border:1px solid #ddd; border-radius:3px; font-size:9px; width:85px;">
                             </div>
                         </td>
                         <td style="text-align:center;">
                             <div style="display:flex; align-items:center; gap:4px; justify-content:center;">
                                 <span class="check-icon ${paid ? 'yes' : 'no'}" onclick="togglePaid('${b.id}')" style="font-size:14px;">${paid ? '&#10004;' : '&#9675;'}</span>
-                                <input type="date" value="${b.paidDate || ''}" onchange="updatePaidDate('${b.id}', this.value)" style="padding:1px 2px; border:1px solid #ddd; border-radius:3px; font-size:9px; width:85px;">
+                                <input type="date" value="${toDateInputFormat(b.paidDate)}" onchange="updatePaidDate('${b.id}', this.value)" style="padding:1px 2px; border:1px solid #ddd; border-radius:3px; font-size:9px; width:85px;">
                             </div>
                         </td>
                         <td>
@@ -1415,7 +1428,7 @@
 
             document.getElementById('editLogId').value = id;
             document.getElementById('editLogDate').max = getTodayIST();
-            document.getElementById('editLogDate').value = log.date;
+            document.getElementById('editLogDate').value = toDateInputFormat(log.date);
             document.getElementById('editLogAnnotator').value = log.annotator;
             document.getElementById('editLogType').value = log.workType || 'production';
             document.getElementById('editLogStartFrame').value = log.startFrame || '';
