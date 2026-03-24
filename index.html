@@ -734,7 +734,9 @@
         }
 
         async function syncFromCloud() {
-            console.log('Starting sync...', SCRIPT_URL);
+            console.log('=== syncFromCloud ENTERED ===');
+            console.log('SCRIPT_URL value:', SCRIPT_URL);
+            console.log('typeof SCRIPT_URL:', typeof SCRIPT_URL);
             updateSyncStatus('syncing', 'Syncing...');
             isSyncing = true;
             document.getElementById('loadingOverlay').style.display = 'flex';
