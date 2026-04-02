@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Research in Progress - SOP Supplier Research Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="card-body text-center py-5">
+                <h3><i class="bi bi-hourglass-split"></i> Researching: {{ company.website }}</h3>
+                <p class="text-muted">Please wait while the app researches the website using your SOP rules.</p>
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <div id="status-message" class="mt-3">
+                    <p class="text-muted">Fetching company pages, checking sources, and preparing the 9-column output...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4" id="result-section" style="display: none;">
+    <div class="col">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-check-circle"></i> Research Results</h5>
+            </div>
+            <div class="card-body">
+                <dl class="row mb-0" id="results-dl"></dl>
+                <div class="d-flex gap-2 mt-4" id="copy-actions" style="display: none;">
+                    <button class="btn btn-success" id="copy-sop-row" type="button">
+                        <i class="bi bi-clipboard"></i> Copy 9-Column Row
+                    </button>
+                    <a href="{{ url_for('research.edit_company', company_id=company.id) }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-pencil"></i> Review / Edit
+                    </a>
+                    <a href="{{ url_for('research.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4" id="error-section" style="display: none;">
+    <div class="col">
+        <div class="alert alert-danger">
+            <h5><i class="bi bi-exclamation-triangle"></i> Error</h5>
+            <p id="error-message"></p>
+            <a href="{{ url_for('research.dashboard') }}" class="btn btn-outline-danger">
+                <i class="bi bi-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let latestResult = null;
+
+async function runResearch() {
+    try {
+        const response = await fetch("{{ url_for('research.api_research', company_id=company.id) }}", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"}
+        });
+
+        const rawText = await response.text();
+
+        // Check if response looks like HTML (Werkzeug error page, etc.)
+        if (rawText.trim().startsWith("<")) {
+            throw new Error(`Server returned HTML instead of JSON (status ${response.status}). This may indicate a server-side error. Check the terminal running the Flask app for details.`);
+        }
+
+        let data;
+        try {
+            data = JSON.parse(rawText);
+        } catch (e) {
+            throw new Error(`Invalid JSON response: ${rawText.substring(0, 200)}`);
+        }
+
+        if (!response.ok) {
+            throw new Error(data.error || `Request failed with status ${response.status}.`);
+        }
+
+        if (data.error) {
+            document.getElementById("error-message").textContent = data.error;
+            document.getElementById("error-section").style.display = "block";
+            return;
+        }
+
+        latestResult = data;
+        const resultsDl = document.getElementById("results-dl");
+        resultsDl.innerHTML = "";
+
+        const fields = [
+            {label: "Company Name", key: "company_name"},
+            {label: "Website", key: "website"},
+            {label: "Generic Email", key: "generic_email"},
+            {label: "Brands/Products", key: "brands"},
+            {label: "Email Source URL", key: "email_source_url"},
+            {label: "Brands/Products Source URL", key: "brands_source_url"},
+            {label: "Brand Categories", key: "brand_categories"},
+            {label: "Duplicate", key: "duplicate"},
+            {label: "Marketplace", key: "marketplace"},
+            {label: "Notes", key: "notes"},
+        ];
+
+        fields.forEach(field => {
+            const value = data[field.key] || "-";
+            const dt = document.createElement("dt");
+            dt.className = "col-sm-3 fw-bold";
+            dt.textContent = field.label;
+            const dd = document.createElement("dd");
+            dd.className = "col-sm-9";
+            dd.textContent = value;
+            resultsDl.appendChild(dt);
+            resultsDl.appendChild(dd);
+        });
+
+        document.getElementById("status-message").innerHTML =
+            '<p class="text-success"><i class="bi bi-check-circle"></i> Research completed.</p>';
+        document.getElementById("result-section").style.display = "block";
+        document.getElementById("copy-actions").style.display = "flex";
+
+    } catch (error) {
+        document.getElementById("error-message").textContent = "An unexpected error occurred: " + error.message;
+        document.getElementById("error-section").style.display = "block";
+    }
+}
+
+document.getElementById("copy-sop-row").addEventListener("click", async () => {
+    if (!latestResult) return;
+    const row = [
+        latestResult.company_name || "",
+        latestResult.website || "",
+        latestResult.generic_email || "",
+        latestResult.brands || "",
+        latestResult.email_source_url || "",
+        latestResult.brands_source_url || "",
+        latestResult.brand_categories || "",
+        latestResult.duplicate || "No",
+        latestResult.marketplace || "No",
+    ].join("\t");
+
+    try {
+        await navigator.clipboard.writeText(row);
+        alert("9-column SOP row copied.");
+    } catch (error) {
+        alert("Copy failed. Please copy manually from the result screen.");
+    }
+});
+
+runResearch();
+</script>
+{% endblock %}
