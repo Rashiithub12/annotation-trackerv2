@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SOP Supplier Research Tool{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col">
+        <h2><i class="bi bi-building"></i> SOP Supplier Research Dashboard</h2>
+        <p class="text-muted mb-0">Enter one website at a time. The app researches the site and fills the 9 SOP fields for review.</p>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('research.research') }}" class="row g-3 align-items-end">
+                    <div class="col-md-8">
+                        <label for="website" class="form-label fw-semibold">Company Website</label>
+                        <input type="text" class="form-control" id="website" name="website"
+                               placeholder="Enter company website (e.g., westconcomstor.com)" required>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Research Website
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col">
+        <div class="d-flex justify-content-between align-items-center">
+            <h4><i class="bi bi-list"></i> Researched Companies ({{ companies|length }})</h4>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" onclick="selectAll()">
+                    <i class="bi bi-check-all"></i> Select All
+                </button>
+                <a href="{{ url_for('export.export_csv') }}" class="btn btn-success btn-sm">
+                    <i class="bi bi-download"></i> Export CSV
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col">
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="30"></th>
+                            <th>Company</th>
+                            <th>Website</th>
+                            <th>Email</th>
+                            <th>Categories</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for company in companies %}
+                        <tr>
+                            <td>
+                                <input type="checkbox" name="company_ids" value="{{ company.id }}">
+                            </td>
+                            <td>
+                                <strong>{{ company.company_name or '—' }}</strong>
+                                {% if company.brands %}
+                                <div class="small text-muted mt-1">
+                                    {{ company.brands[:80] }}{% if company.brands|length > 80 %}...{% endif %}
+                                </div>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <a href="{{ company.website }}" target="_blank" rel="noopener">
+                                    {{ company.website }}
+                                </a>
+                            </td>
+                            <td>{{ company.generic_email or '—' }}</td>
+                            <td>
+                                <span class="text-truncate d-inline-block" style="max-width: 220px;">
+                                    {{ company.brand_categories or '—' }}
+                                </span>
+                            </td>
+                            <td>
+                                {% if company.status == 'completed' %}
+                                <span class="badge bg-success">Completed</span>
+                                {% elif company.status == 'failed' %}
+                                <span class="badge bg-danger">Failed</span>
+                                {% elif company.status == 'in_progress' %}
+                                <span class="badge bg-info text-dark">In Progress</span>
+                                {% elif company.status == 'needs_review' %}
+                                <span class="badge bg-warning text-dark">Needs Review</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    {% if company.status in ['pending', 'in_progress', 'needs_review'] %}
+                                    <a href="{{ url_for('research.run_research', company_id=company.id) }}"
+                                       class="btn btn-primary">
+                                        <i class="bi bi-play"></i> Open
+                                    </a>
+                                    {% else %}
+                                    <a href="{{ url_for('research.edit_company', company_id=company.id) }}"
+                                       class="btn btn-outline-secondary">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    {% endif %}
+                                    <form method="POST" action="{{ url_for('research.delete_company', company_id=company.id) }}"
+                                          style="display: inline;" onsubmit="return confirm('Delete this company?');">
+                                        <button type="submit" class="btn btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted py-4">
+                                No companies researched yet. Enter a website above to start.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function selectAll() {
+    const checkboxes = document.querySelectorAll('input[name="company_ids"]');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
+}
+</script>
+{% endblock %}

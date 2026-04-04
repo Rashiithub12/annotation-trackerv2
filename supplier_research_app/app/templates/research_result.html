@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Research in Progress - SOP Supplier Research Tool{% endblock %}
+{% block title %}Research in Progress - Supplier Research Tool{% endblock %}
 
 {% block content %}
 <div class="row">
@@ -8,12 +8,12 @@
         <div class="card">
             <div class="card-body text-center py-5">
                 <h3><i class="bi bi-hourglass-split"></i> Researching: {{ company.website }}</h3>
-                <p class="text-muted">Please wait while the app researches the website using your SOP rules.</p>
+                <p class="text-muted">Please wait while the app scrapes the website for brands and email.</p>
                 <div class="spinner-border text-primary mb-3" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
                 <div id="status-message" class="mt-3">
-                    <p class="text-muted">Fetching company pages, checking sources, and preparing the 9-column output...</p>
+                    <p class="text-muted">Fetching company pages and extracting brand information...</p>
                 </div>
             </div>
         </div>
@@ -30,15 +30,84 @@
                 <dl class="row mb-0" id="results-dl"></dl>
                 <div class="d-flex gap-2 mt-4" id="copy-actions" style="display: none;">
                     <button class="btn btn-success" id="copy-sop-row" type="button">
-                        <i class="bi bi-clipboard"></i> Copy 9-Column Row
+                        <i class="bi bi-clipboard"></i> Copy SOP Row
                     </button>
-                    <a href="{{ url_for('research.edit_company', company_id=company.id) }}" class="btn btn-outline-secondary">
+                    <a href="#" id="edit-link" class="btn btn-outline-secondary">
                         <i class="bi bi-pencil"></i> Review / Edit
                     </a>
                     <a href="{{ url_for('research.dashboard') }}" class="btn btn-outline-secondary">
                         <i class="bi bi-arrow-left"></i> Back to Dashboard
                     </a>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4" id="manual-section" style="display: none;">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Manual Review Needed</h5>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">The website could not be scraped automatically. Please enter the information manually.</p>
+                <p id="error-reason" class="text-danger small"></p>
+                <form id="manual-form">
+                    <div class="mb-3">
+                        <label for="manual_company_name" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="manual_company_name" name="company_name">
+                    </div>
+                    <div class="mb-3">
+                        <label for="manual_generic_email" class="form-label">Generic Email</label>
+                        <input type="text" class="form-control" id="manual_generic_email" name="generic_email">
+                    </div>
+                    <div class="mb-3">
+                        <label for="manual_brands" class="form-label">Brands/Products</label>
+                        <textarea class="form-control" id="manual_brands" name="brands" rows="3"></textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="manual_brand_categories" class="form-label">Brand Categories (comma separated numbers)</label>
+                        <input type="text" class="form-control" id="manual_brand_categories" name="brand_categories" placeholder="e.g. 13, 19, 32">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save
+                        </button>
+                        <a href="{{ url_for('research.dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Cancel
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> SOP Category Reference</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small mb-0">
+                    <li><strong>10</strong> Servers</li>
+                    <li><strong>11</strong> Server Options</li>
+                    <li><strong>12</strong> Storage</li>
+                    <li><strong>13</strong> Networking</li>
+                    <li><strong>14</strong> Desktop</li>
+                    <li><strong>15</strong> Notebook</li>
+                    <li><strong>16</strong> Printers and Photocopier</li>
+                    <li><strong>17</strong> Supplies</li>
+                    <li><strong>18</strong> Scanners</li>
+                    <li><strong>19</strong> Surveillance</li>
+                    <li><strong>20</strong> UPS and Power Systems</li>
+                    <li><strong>21</strong> Cables</li>
+                    <li><strong>22</strong> Mobiles and Tablets</li>
+                    <li><strong>23</strong> Software</li>
+                    <li><strong>24</strong> Gaming Products</li>
+                    <li><strong>25</strong> Tech Furniture</li>
+                    <li><strong>26</strong> Synergy</li>
+                    <li><strong>32</strong> Services and Support</li>
+                </ul>
             </div>
         </div>
     </div>
@@ -60,6 +129,103 @@
 {% block extra_js %}
 <script>
 let latestResult = null;
+let pollingHandle = null;
+
+function renderResults(data) {
+    latestResult = data;
+    const resultsDl = document.getElementById("results-dl");
+    resultsDl.innerHTML = "";
+
+    const fields = [
+        {label: "Company Name", key: "company_name"},
+        {label: "Website", key: "website"},
+        {label: "Generic Email", key: "generic_email"},
+        {label: "Brands/Products", key: "brands"},
+        {label: "Email Source URL", key: "email_source_url"},
+        {label: "Brands/Products Source URL", key: "brands_source_url"},
+        {label: "Brand Categories", key: "brand_categories"},
+        {label: "Notes", key: "notes"},
+    ];
+
+    fields.forEach(field => {
+        const value = data[field.key] || "-";
+        const dt = document.createElement("dt");
+        dt.className = "col-sm-3 fw-bold";
+        dt.textContent = field.label;
+        const dd = document.createElement("dd");
+        dd.className = "col-sm-9";
+        dd.textContent = value;
+        resultsDl.appendChild(dt);
+        resultsDl.appendChild(dd);
+    });
+
+    document.getElementById("status-message").innerHTML =
+        '<p class="text-success"><i class="bi bi-check-circle"></i> Research completed.</p>';
+    document.getElementById("result-section").style.display = "block";
+    document.getElementById("copy-actions").style.display = "flex";
+
+    // Set edit link
+    document.getElementById("edit-link").href = "/company/{{ company.id }}/edit";
+}
+
+function showManualEntry(data) {
+    document.getElementById("status-message").innerHTML =
+        '<p class="text-warning"><i class="bi bi-exclamation-triangle"></i> ' + (data.notes || "Manual review needed") + '</p>';
+
+    // Pre-fill form with any scraped data
+    if (data.generic_email) {
+        document.getElementById("manual_generic_email").value = data.generic_email;
+    }
+    if (data.brands) {
+        document.getElementById("manual_brands").value = data.brands;
+    }
+    if (data.brand_categories) {
+        document.getElementById("manual_brand_categories").value = data.brand_categories;
+    }
+
+    document.getElementById("error-reason").textContent = data.notes || "";
+    document.getElementById("manual-section").style.display = "flex";
+}
+
+function showError(message) {
+    document.getElementById("error-message").textContent = message;
+    document.getElementById("error-section").style.display = "block";
+}
+
+async function pollStatus() {
+    try {
+        const response = await fetch("{{ url_for('research.api_research_status', company_id=company.id) }}");
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || `Status check failed with ${response.status}.`);
+        }
+
+        if (data.status === "completed") {
+            clearInterval(pollingHandle);
+            renderResults(data);
+            return;
+        }
+
+        if (data.status === "needs_review") {
+            clearInterval(pollingHandle);
+            showManualEntry(data);
+            return;
+        }
+
+        if (data.status === "failed") {
+            clearInterval(pollingHandle);
+            showError(data.notes || "Research failed.");
+            return;
+        }
+
+        document.getElementById("status-message").innerHTML =
+            '<p class="text-muted">Research is running. This page will update automatically.</p>';
+    } catch (error) {
+        clearInterval(pollingHandle);
+        showError("Status polling failed: " + error.message);
+    }
+}
 
 async function runResearch() {
     try {
@@ -70,9 +236,8 @@ async function runResearch() {
 
         const rawText = await response.text();
 
-        // Check if response looks like HTML (Werkzeug error page, etc.)
         if (rawText.trim().startsWith("<")) {
-            throw new Error(`Server returned HTML instead of JSON (status ${response.status}). This may indicate a server-side error. Check the terminal running the Flask app for details.`);
+            throw new Error(`Server returned HTML instead of JSON (status ${response.status}).`);
         }
 
         let data;
@@ -87,50 +252,53 @@ async function runResearch() {
         }
 
         if (data.error) {
-            document.getElementById("error-message").textContent = data.error;
-            document.getElementById("error-section").style.display = "block";
+            showError(data.error);
             return;
         }
 
-        latestResult = data;
-        const resultsDl = document.getElementById("results-dl");
-        resultsDl.innerHTML = "";
+        if (data.company.status === "completed") {
+            renderResults(data.company);
+            return;
+        }
 
-        const fields = [
-            {label: "Company Name", key: "company_name"},
-            {label: "Website", key: "website"},
-            {label: "Generic Email", key: "generic_email"},
-            {label: "Brands/Products", key: "brands"},
-            {label: "Email Source URL", key: "email_source_url"},
-            {label: "Brands/Products Source URL", key: "brands_source_url"},
-            {label: "Brand Categories", key: "brand_categories"},
-            {label: "Duplicate", key: "duplicate"},
-            {label: "Marketplace", key: "marketplace"},
-            {label: "Notes", key: "notes"},
-        ];
-
-        fields.forEach(field => {
-            const value = data[field.key] || "-";
-            const dt = document.createElement("dt");
-            dt.className = "col-sm-3 fw-bold";
-            dt.textContent = field.label;
-            const dd = document.createElement("dd");
-            dd.className = "col-sm-9";
-            dd.textContent = value;
-            resultsDl.appendChild(dt);
-            resultsDl.appendChild(dd);
-        });
+        if (data.company.status === "needs_review") {
+            showManualEntry(data.company);
+            return;
+        }
 
         document.getElementById("status-message").innerHTML =
-            '<p class="text-success"><i class="bi bi-check-circle"></i> Research completed.</p>';
-        document.getElementById("result-section").style.display = "block";
-        document.getElementById("copy-actions").style.display = "flex";
+            '<p class="text-muted">Research queued. Processing...</p>';
+        await pollStatus();
+        pollingHandle = setInterval(pollStatus, 2000);
 
     } catch (error) {
-        document.getElementById("error-message").textContent = "An unexpected error occurred: " + error.message;
-        document.getElementById("error-section").style.display = "block";
+        showError("An unexpected error occurred: " + error.message);
     }
 }
+
+// Handle manual form submission
+document.getElementById("manual-form").addEventListener("submit", async function(e) {
+    e.preventDefault();
+
+    try {
+        const formData = new FormData(this);
+        const response = await fetch("/company/{{ company.id }}/edit", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: new URLSearchParams(formData)
+        });
+
+        if (response.ok) {
+            window.location.href = "{{ url_for('research.dashboard') }}";
+        } else {
+            alert("Failed to save. Please try again.");
+        }
+    } catch (error) {
+        alert("Error saving: " + error.message);
+    }
+});
 
 document.getElementById("copy-sop-row").addEventListener("click", async () => {
     if (!latestResult) return;
@@ -142,13 +310,11 @@ document.getElementById("copy-sop-row").addEventListener("click", async () => {
         latestResult.email_source_url || "",
         latestResult.brands_source_url || "",
         latestResult.brand_categories || "",
-        latestResult.duplicate || "No",
-        latestResult.marketplace || "No",
     ].join("\t");
 
     try {
         await navigator.clipboard.writeText(row);
-        alert("9-column SOP row copied.");
+        alert("SOP row copied.");
     } catch (error) {
         alert("Copy failed. Please copy manually from the result screen.");
     }

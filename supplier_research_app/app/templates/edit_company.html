@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Company - SOP Supplier Research Tool{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-pencil"></i> Review And Edit Research</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="company_name" class="form-label">Company Name</label>
+                        <input type="text" class="form-control" id="company_name" name="company_name"
+                               value="{{ company.company_name or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="website" class="form-label">Website</label>
+                        <input type="url" class="form-control" id="website" name="website"
+                               value="{{ company.website }}" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="generic_email" class="form-label">Generic Email</label>
+                                <input type="text" class="form-control" id="generic_email" name="generic_email"
+                                       value="{{ company.generic_email or '' }}">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="email_source_url" class="form-label">Email Source URL</label>
+                                <input type="url" class="form-control" id="email_source_url" name="email_source_url"
+                                       value="{{ company.email_source_url or '' }}">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="brands" class="form-label">Brands/Products</label>
+                        <textarea class="form-control" id="brands" name="brands" rows="4">{{ company.brands or '' }}</textarea>
+                    </div>
+                    <div class="mb-3">
+                        <label for="brands_source_url" class="form-label">Brands / Products Source URL</label>
+                        <input type="url" class="form-control" id="brands_source_url" name="brands_source_url"
+                               value="{{ company.brands_source_url or '' }}">
+                    </div>
+                    <div class="mb-3">
+                        <label for="brand_categories" class="form-label">Brand Categories</label>
+                        <input type="text" class="form-control" id="brand_categories" name="brand_categories"
+                               value="{{ company.brand_categories or '' }}"
+                               placeholder="Networking, Security, Audio/Video">
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3">{{ company.notes or '' }}</textarea>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-save"></i> Save Changes
+                        </button>
+                        <a href="{{ url_for('research.dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Back
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-info-circle"></i> SOP Category Reference</h6>
+            </div>
+            <div class="card-body">
+                <ul class="list-unstyled small mb-0">
+                    <li><strong>10</strong> Servers</li>
+                    <li><strong>11</strong> Server Options</li>
+                    <li><strong>12</strong> Storage</li>
+                    <li><strong>13</strong> Networking</li>
+                    <li><strong>14</strong> Desktop</li>
+                    <li><strong>15</strong> Notebook</li>
+                    <li><strong>16</strong> Printers and Photocopier</li>
+                    <li><strong>17</strong> Supplies</li>
+                    <li><strong>18</strong> Scanners</li>
+                    <li><strong>19</strong> Surveillance</li>
+                    <li><strong>20</strong> UPS and Power Systems</li>
+                    <li><strong>21</strong> Cables</li>
+                    <li><strong>22</strong> Mobiles and Tablets</li>
+                    <li><strong>23</strong> Software</li>
+                    <li><strong>24</strong> Gaming Products</li>
+                    <li><strong>25</strong> Tech Furniture</li>
+                    <li><strong>26</strong> Synergy</li>
+                    <li><strong>32</strong> Services and Support</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

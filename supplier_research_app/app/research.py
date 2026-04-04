@@ -1,13 +1,33 @@
 """Research routes for company research functionality."""
 
-from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
+import threading
+from flask import Blueprint, current_app, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app import db
-from app.ai_researcher import submit_research_request
 from app.models import Company
+from app.scraper import scrape_company, auto_assign_categories
 
 research_bp = Blueprint("research", __name__)
+
+
+def _company_payload(company):
+    """Serialize company state for polling responses."""
+    return {
+        "id": company.id,
+        "status": company.status,
+        "company_name": company.company_name or "",
+        "website": company.website or "",
+        "generic_email": company.generic_email or "",
+        "brands": company.brands or "",
+        "email_source_url": company.email_source_url or "",
+        "brands_source_url": company.brands_source_url or "",
+        "brand_categories": company.brand_categories or "",
+        "duplicate": company.duplicate or "No",
+        "marketplace": company.marketplace or "No",
+        "notes": company.notes or "",
+        "needs_manual": company.status == "needs_review",
+    }
 
 
 @research_bp.route("/dashboard")
@@ -49,58 +69,72 @@ def run_research(company_id):
     return render_template("research_result.html", company=company)
 
 
+def _run_scrape_in_background(company_id, app):
+    """Background thread to run scraping without blocking Flask."""
+    with app.app_context():
+        company = Company.query.get(company_id)
+        if not company:
+            return
+
+        result = scrape_company(company.website, company.company_name or "")
+
+        if result["needs_manual"]:
+            company.status = "needs_review"
+            company.notes = result.get("error", "Manual review needed")
+            company.generic_email = result.get("generic_email", "")
+            company.email_source_url = result.get("email_source_url", "")
+            company.brands = result.get("brands", "")
+            company.brands_source_url = result.get("brands_source_url", "")
+            if company.brands:
+                company.brand_categories = auto_assign_categories(company.brands)
+        else:
+            company.company_name = result.get("company_name", company.company_name)
+            company.generic_email = result.get("generic_email", "")
+            company.email_source_url = result.get("email_source_url", "")
+            company.brands = result.get("brands", "")
+            company.brands_source_url = result.get("brands_source_url", "")
+            if company.brands:
+                company.brand_categories = auto_assign_categories(company.brands)
+            company.status = "completed"
+            company.notes = "Research completed successfully"
+
+        db.session.commit()
+
+
 @research_bp.route("/api/research/<int:company_id>", methods=["POST"])
 @login_required
 def api_research(company_id):
-    print(f"[DEBUG] api_research called. User: {current_user.username if current_user.is_authenticated else 'NOT AUTHENTICATED'}")
     company = Company.query.get_or_404(company_id)
     if company.user_id != current_user.id:
         return jsonify({"error": "Unauthorized"}), 403
 
-    existing_companies = [
-        {"company_name": item.company_name or "", "website": item.website or ""}
-        for item in Company.query.filter(
-            Company.user_id == current_user.id,
-            Company.id != company.id,
-        ).all()
-    ] 
+    if company.status == "completed":
+        return jsonify({"started": False, "company": _company_payload(company)})
 
-    print(f"[DEBUG] Starting research for {company.website}")
-    try:
-        result = submit_research_request(
-            company.website,
-            existing_companies=existing_companies,
-        ).result()
-        print(f"[DEBUG] Research completed: {result}")
-    except Exception as exc:
-        print(f"[DEBUG] Exception in api_research: {exc}")
-        import traceback
-        traceback.print_exc()
-        company.status = "failed"
-        company.notes = f"Research queue error: {exc}"
-        db.session.commit()
-        return jsonify({"error": f"Research queue error: {exc}"}), 500
+    if company.status == "in_progress":
+        return jsonify({"started": False, "company": _company_payload(company)})
 
-    if "error" in result:
-        company.status = "failed"
-        company.notes = result["error"]
-        db.session.commit()
-        return jsonify(result)
-
-    company.company_name = result.get("company_name", "")
-    company.website = result.get("website", company.website)
-    company.generic_email = result.get("generic_email", "")
-    company.email_source_url = result.get("email_source_url", "")
-    company.brands = result.get("brands", "")
-    company.brands_source_url = result.get("brands_source_url", "")
-    company.brand_categories = result.get("brand_categories", "")
-    company.duplicate = result.get("duplicate", "No")
-    company.marketplace = result.get("marketplace", "No")
-    company.notes = result.get("notes", "")
-    company.status = "completed"
+    company.status = "in_progress"
+    company.notes = "Research in progress..."
     db.session.commit()
 
-    return jsonify(result)
+    # Run scraping in background thread so Flask doesn't block
+    app = current_app._get_current_object()
+    thread = threading.Thread(target=_run_scrape_in_background, args=(company.id, app))
+    thread.daemon = True
+    thread.start()
+
+    return jsonify({"started": True, "company": _company_payload(company)})
+
+
+@research_bp.route("/api/research/<int:company_id>/status")
+@login_required
+def api_research_status(company_id):
+    company = Company.query.get_or_404(company_id)
+    if company.user_id != current_user.id:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    return jsonify(_company_payload(company))
 
 
 @research_bp.route("/company/<int:company_id>/delete", methods=["POST"])
@@ -136,6 +170,7 @@ def edit_company(company_id):
         company.duplicate = request.form.get("duplicate", "No")
         company.marketplace = request.form.get("marketplace", "No")
         company.notes = request.form.get("notes", "")
+        company.status = "completed"  # Mark as completed after manual edit
         db.session.commit()
         flash("Company updated successfully", "success")
         return redirect(url_for("research.dashboard"))

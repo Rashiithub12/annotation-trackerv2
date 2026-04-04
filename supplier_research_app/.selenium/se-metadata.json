@@ -1,0 +1,22 @@
+{
+  "browsers": [],
+  "drivers": [
+    {
+      "major_browser_version": "146",
+      "driver_name": "msedgedriver",
+      "driver_version": "146.0.3856.84",
+      "driver_ttl": 1775041123
+    }
+  ],
+  "stats": [
+    {
+      "browser": "microsoftedge",
+      "browser_version": "",
+      "os": "windows",
+      "arch": "x86_64",
+      "lang": "python",
+      "selenium_version": "4.39",
+      "stats_ttl": 1775041123
+    }
+  ]
+}
